@@ -121,14 +121,10 @@ package Hydrodynamic
 // Use the switch to conditionally output the force and torque
       if enableDragForce then
         F = fd[1:3];
-// Translational drag force
-        T = fd[4:6];
-// Rotational drag torque
+
       else
-        F = zeros(3);
-// Zero translational drag force when disabled
-        T = zeros(3);
-// Zero rotational drag torque when disabled
+        F = zeros(6);
+
       end if;
       annotation(
         Documentation(info = "<html>
@@ -192,15 +188,11 @@ package Hydrodynamic
       fpto = Kp*v_omega + Ki*u_theta;
 // Use the switch to conditionally output the force and torque
       if enablePTOForce then
-        F = -fpto[1:3];
-// Translational PTO force (negative for reactive force)
-        T = -fpto[4:6];
-// Rotational PTO torque (negative for reactive torque)
+        F = -fpto;
+
       else
-        F = zeros(3);
-// Zero translational PTO force when disabled
-        T = zeros(3);
-// Zero rotational PTO torque when disabled
+        F = zeros(6);
+
       end if;
       annotation(
         Documentation(info = "<html>
@@ -253,15 +245,9 @@ package Hydrodynamic
       fhs = -G*u_theta;
 // Use the switch to conditionally output the force and torque
       if enableHydrostaticForce then
-        F = fhs[1:3];
-// Translational hydrostatic force
-        T = fhs[4:6];
-// Rotational hydrostatic torque
+        F = fhs;
       else
-        F = zeros(3);
-// Zero translational hydrostatic force when disabled
-        T = zeros(3);
-// Zero rotational hydrostatic torque when disabled
+        F = zeros(6);
       end if;
       annotation(
         Documentation(info = "<html>
@@ -290,16 +276,14 @@ package Hydrodynamic
 
     model RadiationF "1D Radiation Force Calculation for Hydrodynamic Systems"
       extends Modelica.Blocks.Icons.Block;
-      extends Hydrodynamic.Connector.absolutePosition_con;
-      extends Hydrodynamic.Connector.absoluteVelocity_con;
-      extends Hydrodynamic.Connector.forceTorque_con;
+      
       // Input connectors
       Modelica.Blocks.Interfaces.RealInput z[3] "Position vector [m] (not used in calculations)" annotation(
         Placement(transformation(extent = {{-140, -60}, {-100, -20}})));
       Modelica.Blocks.Interfaces.RealInput v[3] "Velocity vector [m/s] (only vertical component used)" annotation(
         Placement(transformation(extent = {{-140, 20}, {-100, 60}})));
       // Output connector
-      Modelica.Blocks.Interfaces.RealOutput y[3] "Radiation force vector [N] (only vertical component non-zero)" annotation(
+      Modelica.Blocks.Interfaces.RealOutput F[6] "Radiation force vector [N] (only vertical component non-zero)" annotation(
         Placement(transformation(extent = {{100, -10}, {120, 10}})));
       // State-space model parameters for 1D radiation force
       parameter Real A[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 1D model";
@@ -320,9 +304,9 @@ package Hydrodynamic
       F_rad = C*x + D*v[3];
 // Output: 1D radiation force only in the third element (vertical direction), with enable/disable switch
       if enableRadiationForce then
-        y = {0, 0, -F_rad};
+        F = {0, 0, -F_rad,0,0,0};
       else
-        y = {0, 0, 0};
+        F = {0,0,0,0, 0, 0};
       end if;
       annotation(
         Documentation(info = "<html>
@@ -364,20 +348,8 @@ package Hydrodynamic
 
     model HydrodynamicBlock6D "6-Dimensional Hydrodynamic Forces and Moments Calculation"
       extends Modelica.Blocks.Icons.Block;
+      extends Hydrodynamic.Connector.inputOutput_con;
       // Sensors
-      Modelica.Mechanics.MultiBody.Sensors.AbsolutePosition absolutePosition annotation(
-        Placement(transformation(origin = {-50, 0}, extent = {{-10, -10}, {10, 10}})));
-      Modelica.Mechanics.MultiBody.Sensors.AbsoluteVelocity absoluteVelocity annotation(
-        Placement(transformation(origin = {-50, 70}, extent = {{-10, -10}, {10, 10}})));
-      Modelica.Mechanics.MultiBody.Sensors.AbsoluteAngularVelocity absoluteAngularVelocity annotation(
-        Placement(transformation(origin = {-50, -48}, extent = {{-10, -10}, {10, 10}})));
-      Modelica.Mechanics.MultiBody.Sensors.AbsoluteAngles absoluteAngles annotation(
-        Placement(transformation(origin = {-50, -76}, extent = {{-10, -10}, {10, 10}})));
-      // MultiBody connectors
-      Modelica.Mechanics.MultiBody.Interfaces.Frame_a frame_a "Input frame" annotation(
-        Placement(transformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}})));
-      Modelica.Mechanics.MultiBody.Interfaces.Frame_b frame_b "Output frame" annotation(
-        Placement(transformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}})));
       // Hydrodynamic force components
       DragForce6D dragForce6D(Cdy = 0.01, rho = 1000, Cdx = 100, Cdz = 100, Crx = 100, Cry = 0.01, Crz = 100, enableDragForce = false) "Drag force calculation" annotation(
         Placement(transformation(origin = {18, 34}, extent = {{-10, -10}, {10, 10}})));
@@ -387,66 +359,50 @@ package Hydrodynamic
         Placement(transformation(origin = {16, -6}, extent = {{-10, -10}, {10, 10}})));
       RadiationF radiationF "Radiation force calculation" annotation(
         Placement(transformation(origin = {18, 66}, extent = {{-10, -10}, {10, 10}})));
-      // Force and torque application components
-      Modelica.Mechanics.MultiBody.Forces.WorldForceAndTorque forceAndTorque "Apply drag forces and torques" annotation(
-        Placement(transformation(origin = {58, 34}, extent = {{-10, 10}, {10, -10}})));
-      Modelica.Mechanics.MultiBody.Forces.WorldForceAndTorque forceAndTorque1 "Apply PTO forces and torques" annotation(
-        Placement(transformation(origin = {60, -42}, extent = {{-10, 10}, {10, -10}})));
-      Modelica.Mechanics.MultiBody.Forces.WorldForceAndTorque forceAndTorque2 "Apply hydrostatic forces and torques" annotation(
-        Placement(transformation(origin = {62, -6}, extent = {{-10, 10}, {10, -10}})));
-      Modelica.Mechanics.MultiBody.Forces.WorldForce force "Apply radiation forces" annotation(
-        Placement(transformation(origin = {56, 66}, extent = {{-10, -10}, {10, 10}})));
+    // Force and torque application components
+      Sensors sensors annotation(
+        Placement(transformation(origin = {-56, -4}, extent = {{-10, -10}, {10, 10}})));
+    ForceToqueSum forceToqueSum annotation(
+        Placement(transformation(origin = {60, 12}, extent = {{-10, -10}, {10, 10}})));
+    Modelica.Mechanics.MultiBody.Forces.WorldForceAndTorque forceAndTorque annotation(
+        Placement(transformation(origin = {90, -52}, extent = {{-10, -10}, {10, 10}})));
     equation
-      connect(absoluteVelocity.v, pto6d.v_abs) annotation(
-        Line(points = {{-39, 70}, {-34, 70}, {-34, -40}, {8, -40}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(hydrostaticForce6D.F, forceAndTorque2.force) annotation(
-        Line(points = {{26, -1}, {26, 0}, {50, 0}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(hydrostaticForce6D.T, forceAndTorque2.torque) annotation(
-        Line(points = {{26, -11}, {26, -12}, {50, -12}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(pto6d.T, forceAndTorque1.torque) annotation(
-        Line(points = {{28, -49}, {50, -49}, {50, -48}, {48.2, -48}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(pto6d.F, forceAndTorque1.force) annotation(
-        Line(points = {{28, -43}, {50, -43}, {50, -36}, {48.2, -36}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(dragForce6D.T, forceAndTorque.torque) annotation(
-        Line(points = {{28.8, 29}, {46.8, 29}, {46.8, 27}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(dragForce6D.F, forceAndTorque.force) annotation(
-        Line(points = {{29, 39}, {45, 39}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(forceAndTorque2.frame_b, frame_b) annotation(
-        Line(points = {{72, -6}, {78, -6}, {78, 0}, {102, 0}}, color = {95, 95, 95}));
-      connect(forceAndTorque1.frame_b, frame_b) annotation(
-        Line(points = {{70, -42}, {86, -42}, {86, 0}, {102, 0}}, color = {95, 95, 95}));
-      connect(forceAndTorque.frame_b, frame_b) annotation(
-        Line(points = {{68, 34}, {78, 34}, {78, 0}, {102, 0}}, color = {95, 95, 95}));
-      connect(absoluteAngles.angles, pto6d.theta_abs) annotation(
-        Line(points = {{-39, -76}, {-15.5, -76}, {-15.5, -52}, {8, -52}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absoluteAngularVelocity.w, pto6d.omega_abs) annotation(
-        Line(points = {{-39, -48}, {8, -48}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absoluteVelocity.v, radiationF.v) annotation(
-        Line(points = {{-39, 70}, {6, 70}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(radiationF.y, force.force) annotation(
-        Line(points = {{29, 66}, {44, 66}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(force.frame_b, frame_b) annotation(
-        Line(points = {{66, 66}, {78, 66}, {78, 0}, {102, 0}}, color = {95, 95, 95}));
-      connect(frame_a, absolutePosition.frame_a) annotation(
-        Line(points = {{-102, 0}, {-60, 0}}));
-      connect(frame_a, absoluteAngularVelocity.frame_a) annotation(
-        Line(points = {{-102, 0}, {-60, 0}, {-60, -48}}));
-      connect(frame_a, absoluteAngles.frame_a) annotation(
-        Line(points = {{-102, 0}, {-60, 0}, {-60, -76}}));
-      connect(frame_a, absoluteVelocity.frame_a) annotation(
-        Line(points = {{-102, 0}, {-60, 0}, {-60, 70}}));
-      connect(absolutePosition.r, hydrostaticForce6D.u_abs) annotation(
-        Line(points = {{-38, 0}, {6, 0}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absoluteVelocity.v, dragForce6D.v_abs) annotation(
-        Line(points = {{-38, 70}, {-34, 70}, {-34, 40}, {8, 40}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absoluteAngularVelocity.w, hydrostaticForce6D.theta_abs) annotation(
-        Line(points = {{-38, -48}, {-34, -48}, {-34, -10}, {6, -10}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absolutePosition.r, pto6d.u_abs) annotation(
-        Line(points = {{-38, 0}, {-34, 0}, {-34, -44}, {8, -44}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absoluteAngularVelocity.w, dragForce6D.omega_abs) annotation(
-        Line(points = {{-38, -48}, {-34, -48}, {-34, 28}, {8, 28}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absolutePosition.r, radiationF.z) annotation(
-        Line(points = {{-38, 0}, {-34, 0}, {-34, 62}, {6, 62}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(frame_a, sensors.frame_a) annotation(
+        Line(points = {{-102, 0}, {-66, 0}, {-66, -4}}));
+      connect(sensors.u_abs, radiationF.z) annotation(
+        Line(points = {{-44, 6}, {-42, 6}, {-42, 62}, {6, 62}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(sensors.v_abs, radiationF.v) annotation(
+        Line(points = {{-44, -6}, {-30, -6}, {-30, 72}, {6, 72}, {6, 70}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(sensors.v_abs, dragForce6D.v_abs) annotation(
+        Line(points = {{-44, -6}, {-22, -6}, {-22, 40}, {8, 40}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(sensors.omega_abs, dragForce6D.omega_abs) annotation(
+        Line(points = {{-44, -12}, {-16, -12}, {-16, 28}, {8, 28}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(sensors.u_abs, hydrostaticForce6D.u_abs) annotation(
+        Line(points = {{-44, 6}, {-2, 6}, {-2, 0}, {6, 0}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(sensors.theta_abs, hydrostaticForce6D.theta_abs) annotation(
+        Line(points = {{-46, 0}, {-2, 0}, {-2, -12}, {6, -12}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(sensors.v_abs, pto6d.v_abs) annotation(
+        Line(points = {{-44, -6}, {-22, -6}, {-22, -40}, {8, -40}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(sensors.omega_abs, pto6d.omega_abs) annotation(
+        Line(points = {{-44, -12}, {-44, -52}, {8, -52}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(sensors.u_abs, pto6d.u_abs) annotation(
+        Line(points = {{-44, 6}, {-12, 6}, {-12, -38}, {6, -38}}, color = {0, 0, 127}, thickness = 0.5));
+      connect(sensors.theta_abs, pto6d.theta_abs) annotation(
+        Line(points = {{-46, 0}, {-30, 0}, {-30, -44}, {6, -44}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(radiationF.F, forceToqueSum.Fr) annotation(
+        Line(points = {{30, 66}, {48, 66}, {48, 20}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(hydrostaticForce6D.F, forceToqueSum.Fhs) annotation(
+        Line(points = {{28, -6}, {46, -6}, {46, 14}, {48, 14}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(dragForce6D.F, forceToqueSum.Fd) annotation(
+        Line(points = {{18, 34}, {48, 34}, {48, 10}}));
+    connect(pto6d.F, forceToqueSum.Fpto) annotation(
+        Line(points = {{30, -46}, {48, -46}, {48, 4}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(forceToqueSum.T, forceAndTorque.torque) annotation(
+        Line(points = {{70, 8}, {70, 6}, {78, 6}, {78, -46}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(forceToqueSum.F, forceAndTorque.force) annotation(
+        Line(points = {{72, 18}, {72, 16}, {78, 16}, {78, -58}}, color = {0, 0, 127}, thickness = 0.5));
+  connect(forceAndTorque.frame_b, frame_b) annotation(
+        Line(points = {{100, -52}, {102, -52}, {102, 0}}));
       annotation(
         Diagram);
       annotation(
@@ -698,7 +654,7 @@ package Hydrodynamic
         extends Modelica.Blocks.Icons.Block;
         import Modelica.Math.Vectors;
         // Internal connector for wave properties
-        OceanEngineeringToolbox.Internal.Connectors.WaveOutConn wconn "Internal connector for wave properties";
+        Hydrodynamic.Internal.Connectors.WaveOutConn wconn "Internal connector for wave properties";
         // Output connector for excitation force
         Modelica.Blocks.Interfaces.RealOutput y[3] "Excitation force vector [N] (only vertical component non-zero)" annotation(
           Placement(transformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, 0}, extent = {{-10, -10}, {10, 10}})),
@@ -741,20 +697,20 @@ package Hydrodynamic
           Dialog(group = "Random Generation"));
         parameter Integer globalSeed = 30020 "Global random seed for frequency selection" annotation(
           Dialog(group = "Random Generation"));
-        parameter Real rnd_shft[n_omega] = OceanEngineeringToolbox.Internal.Functions.randomNumberGen(localSeed, globalSeed, n_omega) "Random shifts for frequency selection";
+        parameter Real rnd_shft[n_omega] = Hydrodynamic.Internal.Functions.randomNumberGen(localSeed, globalSeed, n_omega) "Random shifts for frequency selection";
         parameter Integer localSeed1 = 614757 "Local random seed for phase shifts" annotation(
           Dialog(group = "Random Generation"));
         parameter Integer globalSeed1 = 40020 "Global random seed for phase shifts" annotation(
           Dialog(group = "Random Generation"));
-        parameter Real epsilon[n_omega] = OceanEngineeringToolbox.Internal.Functions.randomNumberGen(localSeed1, globalSeed1, n_omega) "Wave components phase shift";
+        parameter Real epsilon[n_omega] = Hydrodynamic.Internal.Functions.randomNumberGen(localSeed1, globalSeed1, n_omega) "Wave components phase shift";
         parameter Real Trmp = 100 "Interval for ramping up of waves during start phase [s]" annotation(
           Dialog(group = "Simulation Parameters"));
         // Derived parameters
-        parameter Real omega[n_omega] = OceanEngineeringToolbox.Internal.Functions.frequencySelector(omega_min, omega_max, rnd_shft) "Selected frequency components [rad/s]";
-        parameter Real S[n_omega] = OceanEngineeringToolbox.Internal.Functions.spectrumGenerator_PM(Hs, omega) "Spectral values for frequency components [m^2-s/rad]";
+        parameter Real omega[n_omega] = Hydrodynamic.Internal.Functions.frequencySelector(omega_min, omega_max, rnd_shft) "Selected frequency components [rad/s]";
+        parameter Real S[n_omega] = Hydrodynamic.Internal.Functions.spectrumGenerator_PM(Hs, omega) "Spectral values for frequency components [m^2-s/rad]";
         parameter Modelica.Units.SI.Length zeta[n_omega] = sqrt(2*S*omega_min) "Wave amplitude components [m]";
         parameter Real Tp[n_omega] = 2*pi./omega "Wave period components [s]";
-        parameter Real k[n_omega] = OceanEngineeringToolbox.Internal.Functions.waveNumber(d, omega) "Wave number components [1/m]";
+        parameter Real k[n_omega] = Hydrodynamic.Internal.Functions.waveNumber(d, omega) "Wave number components [1/m]";
         // Variables
         Real ExcCoeffRe[n_omega] "Real component of excitation coefficient for frequency components";
         Real ExcCoeffIm[n_omega] "Imaginary component of excitation coefficient for frequency components";
@@ -806,7 +762,7 @@ package Hydrodynamic
         extends Modelica.Blocks.Icons.Block;
         import Modelica.Math.Vectors;
         // Internal connector for wave properties
-        OceanEngineeringToolbox.Internal.Connectors.WaveOutConn wconn "Internal connector for wave properties";
+        Hydrodynamic.Internal.Connectors.WaveOutConn wconn "Internal connector for wave properties";
         // Output connector for excitation force
         Modelica.Blocks.Interfaces.RealOutput y[3] "Excitation force vector [N] (only vertical component non-zero)" annotation(
           Placement(transformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, 0}, extent = {{-10, -10}, {10, 10}})));
@@ -840,20 +796,20 @@ package Hydrodynamic
           Dialog(group = "Random Generation"));
         parameter Integer globalSeed = 30020 "Global random seed for frequency selection" annotation(
           Dialog(group = "Random Generation"));
-        parameter Real rnd_shft[n_omega] = OceanEngineeringToolbox.Internal.Functions.randomNumberGen(localSeed, globalSeed, n_omega) "Random shifts for frequency selection";
+        parameter Real rnd_shft[n_omega] = Hydrodynamic.Internal.Functions.randomNumberGen(localSeed, globalSeed, n_omega) "Random shifts for frequency selection";
         parameter Integer localSeed1 = 614757 "Local random seed for phase shifts" annotation(
           Dialog(group = "Random Generation"));
         parameter Integer globalSeed1 = 40020 "Global random seed for phase shifts" annotation(
           Dialog(group = "Random Generation"));
-        parameter Real epsilon[n_omega] = OceanEngineeringToolbox.Internal.Functions.randomNumberGen(localSeed1, globalSeed1, n_omega) "Wave components phase shift";
+        parameter Real epsilon[n_omega] = Hydrodynamic.Internal.Functions.randomNumberGen(localSeed1, globalSeed1, n_omega) "Wave components phase shift";
         parameter Real Trmp = 200 "Interval for ramping up of waves during start phase [s]" annotation(
           Dialog(group = "Simulation Parameters"));
         // Derived parameters
-        parameter Real omega[n_omega] = OceanEngineeringToolbox.Internal.Functions.frequencySelector(omega_min, omega_max, rnd_shft) "Selected frequency components [rad/s]";
-        parameter Real S[n_omega] = OceanEngineeringToolbox.Internal.Functions.spectrumGenerator_BRT(Hs, omega, omega_peak) "Spectral values for frequency components [m^2-s/rad]";
+        parameter Real omega[n_omega] = Hydrodynamic.Internal.Functions.frequencySelector(omega_min, omega_max, rnd_shft) "Selected frequency components [rad/s]";
+        parameter Real S[n_omega] = Hydrodynamic.Internal.Functions.spectrumGenerator_BRT(Hs, omega, omega_peak) "Spectral values for frequency components [m^2-s/rad]";
         parameter Modelica.Units.SI.Length zeta[n_omega] = sqrt(2*S*omega_min) "Wave amplitude components [m]";
         parameter Real Tp[n_omega] = 2*pi./omega "Wave period components [s]";
-        parameter Real k[n_omega] = OceanEngineeringToolbox.Internal.Functions.waveNumber(d, omega) "Wave number components [1/m]";
+        parameter Real k[n_omega] = Hydrodynamic.Internal.Functions.waveNumber(d, omega) "Wave number components [1/m]";
         // Variables
         Real ExcCoeffRe[n_omega] "Real component of excitation coefficient for frequency components";
         Real ExcCoeffIm[n_omega] "Imaginary component of excitation coefficient for frequency components";
@@ -905,7 +861,7 @@ package Hydrodynamic
         extends Modelica.Blocks.Icons.Block;
         import Modelica.Math.Vectors;
         // Internal connector for wave properties
-        OceanEngineeringToolbox.Internal.Connectors.WaveOutConn wconn "Internal connector for wave properties";
+        Hydrodynamic.Internal.Connectors.WaveOutConn wconn "Internal connector for wave properties";
         // Output connector for excitation force
         Modelica.Blocks.Interfaces.RealOutput y[3] "Excitation force vector [N] (only vertical component non-zero)" annotation(
           Placement(transformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, 0}, extent = {{-10, -10}, {10, 10}})),
@@ -946,20 +902,20 @@ package Hydrodynamic
           Dialog(group = "Random Generation"));
         parameter Integer globalSeed = 30020 "Global random seed for frequency selection" annotation(
           Dialog(group = "Random Generation"));
-        parameter Real rnd_shft[n_omega] = OceanEngineeringToolbox.Internal.Functions.randomNumberGen(localSeed, globalSeed, n_omega) "Random shifts for frequency selection";
+        parameter Real rnd_shft[n_omega] = Hydrodynamic.Internal.Functions.randomNumberGen(localSeed, globalSeed, n_omega) "Random shifts for frequency selection";
         parameter Integer localSeed1 = 614757 "Local random seed for phase shifts" annotation(
           Dialog(group = "Random Generation"));
         parameter Integer globalSeed1 = 40020 "Global random seed for phase shifts" annotation(
           Dialog(group = "Random Generation"));
-        parameter Real epsilon[n_omega] = OceanEngineeringToolbox.Internal.Functions.randomNumberGen(localSeed1, globalSeed1, n_omega) "Wave components phase shift";
+        parameter Real epsilon[n_omega] = Hydrodynamic.Internal.Functions.randomNumberGen(localSeed1, globalSeed1, n_omega) "Wave components phase shift";
         parameter Real Trmp = 200 "Interval for ramping up of waves during start phase [s]" annotation(
           Dialog(group = "Simulation Parameters"));
         // Derived parameters
-        parameter Real omega[n_omega] = OceanEngineeringToolbox.Internal.Functions.frequencySelector(omega_min, omega_max, rnd_shft) "Selected frequency components [rad/s]";
-        parameter Real S[n_omega] = OceanEngineeringToolbox.Internal.Functions.spectrumGenerator_JONSWAP(Hs, omega, omega_peak, spectralWidth_min, spectralWidth_max) "Spectral values for frequency components [m^2-s/rad]";
+        parameter Real omega[n_omega] = Hydrodynamic.Internal.Functions.frequencySelector(omega_min, omega_max, rnd_shft) "Selected frequency components [rad/s]";
+        parameter Real S[n_omega] = Hydrodynamic.Internal.Functions.spectrumGenerator_JONSWAP(Hs, omega, omega_peak, spectralWidth_min, spectralWidth_max) "Spectral values for frequency components [m^2-s/rad]";
         parameter Modelica.Units.SI.Length zeta[n_omega] = sqrt(2*S*omega_min) "Wave amplitude components [m]";
         parameter Real Tp[n_omega] = 2*pi./omega "Wave period components [s]";
-        parameter Real k[n_omega] = OceanEngineeringToolbox.Internal.Functions.waveNumber(d, omega) "Wave number components [1/m]";
+        parameter Real k[n_omega] = Hydrodynamic.Internal.Functions.waveNumber(d, omega) "Wave number components [1/m]";
         // Variables
         Real ExcCoeffRe[n_omega] "Real component of excitation coefficient for frequency components";
         Real ExcCoeffIm[n_omega] "Imaginary component of excitation coefficient for frequency components";
@@ -1345,15 +1301,15 @@ package Hydrodynamic
       /* Demonstrates the use of different wave types and their connections to rigid body models */
       parameter String filePath = "F:/.../hydroCoeff.mat" "File path for hydrodynamic coefficients";
       // Wave models
-      OceanEngineeringToolbox.WaveProfile.RegularWave.LinearWave Reg1(fileName = filePath, Hs = 2.5, Trmp = 50) "Regular linear wave model";
-      OceanEngineeringToolbox.WaveProfile.IrregularWave.PiersonMoskowitzWave Irr1(fileName = filePath, Hs = 2.5, n_omega = 100, Trmp = 50) "Irregular Pierson-Moskowitz wave model";
-      OceanEngineeringToolbox.WaveProfile.IrregularWave.BretschneiderWave Irr2(fileName = filePath, Hs = 2.5, n_omega = 100, Trmp = 50) "Irregular Bretschneider wave model";
-      OceanEngineeringToolbox.WaveProfile.IrregularWave.JonswapWave Irr3(fileName = filePath, Hs = 2.5, n_omega = 100, Trmp = 50) "Irregular JONSWAP wave model";
+      Hydrodynamic.WaveProfile.RegularWave.LinearWave Reg1(fileName = filePath, Hs = 2.5, Trmp = 50) "Regular linear wave model";
+      Hydrodynamic.WaveProfile.IrregularWave.PiersonMoskowitzWave Irr1(fileName = filePath, Hs = 2.5, n_omega = 100, Trmp = 50) "Irregular Pierson-Moskowitz wave model";
+      Hydrodynamic.WaveProfile.IrregularWave.BretschneiderWave Irr2(fileName = filePath, Hs = 2.5, n_omega = 100, Trmp = 50) "Irregular Bretschneider wave model";
+      Hydrodynamic.WaveProfile.IrregularWave.JonswapWave Irr3(fileName = filePath, Hs = 2.5, n_omega = 100, Trmp = 50) "Irregular JONSWAP wave model";
       // Rigid body models
-      OceanEngineeringToolbox.Structures.RigidBody Body1(fileName = filePath) "Rigid body for regular wave interaction";
-      OceanEngineeringToolbox.Structures.RigidBody Body2(fileName = filePath) "Rigid body for Pierson-Moskowitz wave interaction";
-      OceanEngineeringToolbox.Structures.RigidBody Body3(fileName = filePath) "Rigid body for Bretschneider wave interaction";
-      OceanEngineeringToolbox.Structures.RigidBody Body4(fileName = filePath) "Rigid body for JONSWAP wave interaction";
+      Hydrodynamic.Structures.RigidBody Body1(fileName = filePath) "Rigid body for regular wave interaction";
+      Hydrodynamic.Structures.RigidBody Body2(fileName = filePath) "Rigid body for Pierson-Moskowitz wave interaction";
+      Hydrodynamic.Structures.RigidBody Body3(fileName = filePath) "Rigid body for Bretschneider wave interaction";
+      Hydrodynamic.Structures.RigidBody Body4(fileName = filePath) "Rigid body for JONSWAP wave interaction";
     equation
 // Connect wave models to corresponding rigid bodies
       connect(Reg1.wconn.F_exc, Body1.wconn.F_exc) "Connection for regular wave excitation";
@@ -1748,32 +1704,107 @@ package Hydrodynamic
     // Sensor readings
   connector absolutePosition_con
     Modelica.Blocks.Interfaces.RealInput u_abs[3] "Linear displacement vector [m]" annotation(
-      Placement(transformation(origin = {-106, 50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-96, 50}, extent = {{-20, -20}, {20, 20}})));
+      Placement(transformation(origin = {-120, 84}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 82}, extent = {{-20, -20}, {20, 20}})));
     Modelica.Blocks.Interfaces.RealInput theta_abs[3] "Angular displacement vector [rad]" annotation(
-      Placement(transformation(origin = {-108, -50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-102, -52}, extent = {{-20, -20}, {20, 20}})));
+      Placement(transformation(origin = {-120, 36}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 28}, extent = {{-20, -20}, {20, 20}})));
   end absolutePosition_con;  
     
   connector absoluteVelocity_con
     Modelica.Blocks.Interfaces.RealInput v_abs[3] "Absolute linear velocity vector [m/s]" annotation(
-      Placement(transformation(origin = {-108, 50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-98, 50}, extent = {{-20, -20}, {20, 20}})));
+      Placement(transformation(origin = {-120, -42}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -22}, extent = {{-20, -20}, {20, 20}})));
     Modelica.Blocks.Interfaces.RealInput omega_abs[3] "Absolute angular velocity vector [rad/s]" annotation(
-      Placement(transformation(origin = {-108, -50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-102, -52}, extent = {{-20, -20}, {20, 20}})));
+      Placement(transformation(origin = {-120, -82}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -76}, extent = {{-20, -20}, {20, 20}})));
   end absoluteVelocity_con;  
     
      // Force and torque output
   connector forceTorque_con
+    Modelica.Blocks.Interfaces.RealOutput F[6] "Force/Torque vector [N,N*m]" annotation(
+      Placement(transformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}})));
+  end forceTorque_con;
+  
+  connector inputOutput_con
+    Modelica.Mechanics.MultiBody.Interfaces.Frame_a frame_a "Input frame" annotation(
+      Placement(transformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}})));
+    Modelica.Mechanics.MultiBody.Interfaces.Frame_b frame_b "Output frame" annotation(
+      Placement(transformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}})));
+  end inputOutput_con;
+  
+  connector input_con
+    Modelica.Mechanics.MultiBody.Interfaces.Frame_a frame_a "Input frame" annotation(
+      Placement(transformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}})));
+  end input_con;
+  
+  connector sensorOutput_con
+  Modelica.Blocks.Interfaces.RealOutput u_abs[3] "Linear displacement vector [m]" annotation(
+      Placement(transformation(origin = {110, 92}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 90}, extent = {{-10, -10}, {10, 10}})));
+  Modelica.Blocks.Interfaces.RealOutput v_abs[3] "Absolute linear velocity vector [m/s]" annotation(
+      Placement(transformation(origin = {108, -34}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, -26}, extent = {{-10, -10}, {10, 10}})));
+  Modelica.Blocks.Interfaces.RealOutput theta_abs[3] "Angular displacement vector [rad]" annotation(
+        Placement(transformation(origin = {108, 42}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {109, 40}, extent = {{-10, -10}, {10, 10}})));
+  Modelica.Blocks.Interfaces.RealOutput omega_abs[3] "Absolute angular velocity vector [rad/s]" annotation(
+        Placement(transformation(origin = {110, -94}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, -82}, extent = {{-10, -10}, {10, 10}})));
+  end sensorOutput_con;
+  
+  connector forceTorqueSum_con
+   Modelica.Blocks.Interfaces.RealInput Fr[6] "Radiation Force [N]" annotation(
+      Placement(transformation(origin = {-120, 84}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 82}, extent = {{-20, -20}, {20, 20}})));
+   Modelica.Blocks.Interfaces.RealInput Fhs[6] "Hydrostatic force [N]" annotation(
+      Placement(transformation(origin = {-120, 36}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 28}, extent = {{-20, -20}, {20, 20}})));
+    Modelica.Blocks.Interfaces.RealInput Fd[6] "Drag force [N]" annotation(
+      Placement(transformation(origin = {-120, -42}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -22}, extent = {{-20, -20}, {20, 20}})));
+   Modelica.Blocks.Interfaces.RealInput Fpto[6] "PTO force [N]" annotation(
+      Placement(transformation(origin = {-120, -82}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -76}, extent = {{-20, -20}, {20, 20}}))); 
+  end forceTorqueSum_con;
+  
+  connector forceandTorque_con
     Modelica.Blocks.Interfaces.RealOutput F[3] "Translational drag force vector [N]" annotation(
       Placement(transformation(origin = {108, 50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 50}, extent = {{-10, -10}, {10, 10}})));
     Modelica.Blocks.Interfaces.RealOutput T[3] "Rotational drag torque vector [N*m]" annotation(
       Placement(transformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}})));
-  end forceTorque_con;
+  end forceandTorque_con;
   
   end Connector;
 
   model Sensors
+   extends Hydrodynamic.Connector.input_con;
+   extends Hydrodynamic.Connector.sensorOutput_con;
+   // Sensors
+    Modelica.Mechanics.MultiBody.Sensors.AbsolutePosition absolutePosition annotation(
+      Placement(transformation(origin = {-50, 22}, extent = {{-10, -10}, {10, 10}})));
+    Modelica.Mechanics.MultiBody.Sensors.AbsoluteVelocity absoluteVelocity annotation(
+      Placement(transformation(origin = {-50, 70}, extent = {{-10, -10}, {10, 10}})));
+    Modelica.Mechanics.MultiBody.Sensors.AbsoluteAngularVelocity absoluteAngularVelocity annotation(
+      Placement(transformation(origin = {-50, -36}, extent = {{-10, -10}, {10, 10}})));
+    Modelica.Mechanics.MultiBody.Sensors.AbsoluteAngles absoluteAngles annotation(
+      Placement(transformation(origin = {-50, -76}, extent = {{-10, -10}, {10, 10}})));
+   
+  
   equation
-
+connect(frame_a,absolutePosition.frame_a);
+  connect(frame_a,absoluteAngles.frame_a);
+  connect(frame_a,absoluteVelocity.frame_a);
+  connect(frame_a,absoluteAngularVelocity.frame_a);
+  
+  connect(absolutePosition.r,u_abs);
+  connect(absoluteAngles.angles,theta_abs);
+  connect(absoluteVelocity.v,v_abs);
+  connect(absoluteAngularVelocity.w,omega_abs);
+  
   end Sensors;
+
+  model ForceToqueSum
+  extends Hydrodynamic.Connector.forceandTorque_con;
+  extends Hydrodynamic.Connector.forceTorqueSum_con;
+  
+  Real f[6];
+  equation
+  f = Fr + Fpto + Fd + Fhs;
+  
+  F = f[1:3];
+  T = f[4:6];
+  
+
+  end ForceToqueSum;
   annotation(
     Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, fillColor = {230, 240, 255}, fillPattern = FillPattern.Solid, lineColor = {0, 0, 255}), // Regular wave representation
     Line(points = {{-90, 40}, {-75, 60}, {-60, 20}, {-45, 50}, {-30, 10}, {-15, 40}, {0, 20}, {15, 50}, {30, 10}, {45, 60}, {60, 20}, {75, 50}, {90, 40}}, color = {0, 0, 200}, thickness = 2, smooth = Smooth.Bezier), // Irregular wave representation
@@ -1818,5 +1849,6 @@ package Hydrodynamic
     <p>This package provides a foundation for hydrodynamic simulations in Modelica, 
     particularly suited for Wave Energy Converter applications. Users can leverage 
     these components to build and simulate various marine energy devices.</p>
-  </html>"));
+  </html>"),
+  uses(Modelica(version = "4.0.0")));
 end Hydrodynamic;
