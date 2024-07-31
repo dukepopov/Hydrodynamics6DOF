@@ -16,7 +16,7 @@ package Hydrodynamic
       // Hydrodynamic body component
       Forces.BodyHD6D bodyHD6D "Hydrodynamic body with 6 degrees of freedom" annotation(
         Placement(transformation(origin = {12, -20}, extent = {{-10, -10}, {10, 10}})));
-  // Wave profile component
+      // Wave profile component
       WaveProfile.IrregularWave.PiersonMoskowitzWave piersonMoskowitzWave annotation(
         Placement(transformation(origin = {78, -20}, extent = {{-10, -10}, {10, 10}}, rotation = 180)));
     equation
@@ -27,7 +27,7 @@ package Hydrodynamic
         Line(points = {{32, -20}, {22, -20}}, color = {95, 95, 95}));
       connect(prismatic.frame_b, bodyHD6D.frame_a) annotation(
         Line(points = {{-12, -20}, {2, -20}}, color = {95, 95, 95}));
-  connect(piersonMoskowitzWave.y, force.force) annotation(
+      connect(piersonMoskowitzWave.y, force.force) annotation(
         Line(points = {{68, -20}, {54, -20}}, color = {0, 0, 127}, thickness = 0.5));
       annotation(
         Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}), Polygon(points = {{-60, 0}, {60, 80}, {60, -80}, {-60, 0}}, lineColor = {0, 0, 255}, fillColor = {0, 0, 255}, fillPattern = FillPattern.Solid), Line(points = {{-100, 40}, {-30, 0}, {40, 60}, {100, 20}}, color = {0, 0, 255}, thickness = 1.5, smooth = Smooth.Bezier), Ellipse(extent = {{-20, 20}, {20, -20}}, lineColor = {0, 0, 255}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid), Line(points = {{0, 100}, {0, 20}}, color = {0, 0, 255}, thickness = 1.5)}),
@@ -89,18 +89,11 @@ package Hydrodynamic
   end Example;
 
   package Forces
-  model DragForce6D "6-Dimensional Drag Force and Torque Calculation"
+    model DragForce6D "6-Dimensional Drag Force and Torque Calculation"
       extends Modelica.Blocks.Icons.Block;
-      // Input ports
-      Modelica.Blocks.Interfaces.RealInput u[3] "Linear velocity vector [m/s]" annotation(
-        Placement(transformation(origin = {-108, 50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-98, 50}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput a[3] "Angular velocity vector [rad/s]" annotation(
-        Placement(transformation(origin = {-108, -50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-102, -52}, extent = {{-20, -20}, {20, 20}})));
-      // Output ports
-      Modelica.Blocks.Interfaces.RealOutput y[3] "Translational drag force vector [N]" annotation(
-        Placement(transformation(origin = {108, 50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 50}, extent = {{-10, -10}, {10, 10}})));
-      Modelica.Blocks.Interfaces.RealOutput y1[3] "Rotational drag torque vector [N*m]" annotation(
-        Placement(transformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}})));
+      extends Hydrodynamic.Connector.absoluteVelocity_con;
+      extends Hydrodynamic.Connector.forceTorque_con;
+      
       // Fluid and reference parameters
       parameter Real rho = 1.25 "Density of fluid [kg/m^3]";
       parameter Real A = 1 "Reference area [m^2]";
@@ -116,25 +109,25 @@ package Hydrodynamic
       parameter Boolean enableDragForce = true "Switch to enable/disable drag force calculation";
       // Internal variables
       Real c "Combined constant term for drag calculation";
-      Real Fd[6] "6D drag force/torque vector [N, N*m]";
-      Real v[6] "Combined linear and angular velocity vector [m/s, rad/s]";
+      Real fd[6] "6D drag force/torque vector [N, N*m]";
+      Real v_omega[6] "Combined linear and angular velocity vector [m/s, rad/s]";
     equation
 // Calculate the combined constant term
       c = 0.5*rho*A;
 // Combine linear and angular velocities into a single vector
-      v = cat(1, u, a);
+      v_omega = cat(1, v_abs, omega_abs);
 // Calculate the 6D drag force/torque vector
-      Fd = -c*Cd*v.*abs(v);
+      fd = -c*Cd*v_omega.*abs(v_omega);
 // Use the switch to conditionally output the force and torque
       if enableDragForce then
-        y = Fd[1:3];
+        F = fd[1:3];
 // Translational drag force
-        y1 = Fd[4:6];
+        T = fd[4:6];
 // Rotational drag torque
       else
-        y = zeros(3);
+        F = zeros(3);
 // Zero translational drag force when disabled
-        y1 = zeros(3);
+        T = zeros(3);
 // Zero rotational drag torque when disabled
       end if;
       annotation(
@@ -165,20 +158,10 @@ package Hydrodynamic
 
     block PTO6D "6-Dimensional Power Take-Off (PTO) System"
       extends Modelica.Blocks.Icons.Block;
-      // Input ports
-      Modelica.Blocks.Interfaces.RealInput u[3] "Linear velocity vector [m/s]" annotation(
-        Placement(transformation(origin = {-106, 60}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-98, 60}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput s[3] "Linear displacement vector [m]" annotation(
-        Placement(transformation(origin = {-106, 20}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-98, 20}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput omega[3] "Angular velocity vector [rad/s]" annotation(
-        Placement(transformation(origin = {-106, -20}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-98, -20}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput theta[3] "Angular displacement vector [rad]" annotation(
-        Placement(transformation(origin = {-106, -60}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-98, -60}, extent = {{-20, -20}, {20, 20}})));
-      // Output ports
-      Modelica.Blocks.Interfaces.RealOutput y[3] "Translational PTO force vector [N]" annotation(
-        Placement(transformation(origin = {108, 30}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {102, 30}, extent = {{-10, -10}, {10, 10}})));
-      Modelica.Blocks.Interfaces.RealOutput y1[3] "Rotational PTO torque vector [N*m]" annotation(
-        Placement(transformation(origin = {108, -30}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {102, -30}, extent = {{-10, -10}, {10, 10}})));
+      extends Hydrodynamic.Connector.absolutePosition_con;
+      extends Hydrodynamic.Connector.absoluteVelocity_con;
+      extends Hydrodynamic.Connector.forceTorque_con;
+      
       // Proportional gain parameters
       parameter Real Kpx = 0.1 "Proportional gain for x-axis translation [N/(m/s)]";
       parameter Real Kpy = 0.1 "Proportional gain for y-axis translation [N/(m/s)]";
@@ -198,20 +181,25 @@ package Hydrodynamic
       // Control parameter
       parameter Boolean enablePTOForce = true "Switch to enable/disable PTO force calculation";
       // Internal variable
-      Real Fp[6] "Combined PTO force/torque vector [N, N*m]";
+      Real fpto[6] "Combined PTO force/torque vector [N, N*m]";
+      Real u_theta[6] "Combined displacement vector [m, rad]";
+      Real v_omega[6] "Combined linear and angular velocity vector [m/s, rad/s]";
+       
     equation
+     u_theta = cat(1,u_abs,theta_abs);
+     v_omega = cat(1, v_abs, omega_abs);
 // Calculate the combined PTO force/torque vector
-      Fp = Kp*cat(1, u, omega) + Ki*cat(1, s, theta);
+      fpto = Kp*v_omega + Ki*u_theta;
 // Use the switch to conditionally output the force and torque
       if enablePTOForce then
-        y = -Fp[1:3];
+        F = -fpto[1:3];
 // Translational PTO force (negative for reactive force)
-        y1 = -Fp[4:6];
+        T = -fpto[4:6];
 // Rotational PTO torque (negative for reactive torque)
       else
-        y = zeros(3);
+        F = zeros(3);
 // Zero translational PTO force when disabled
-        y1 = zeros(3);
+        T = zeros(3);
 // Zero rotational PTO torque when disabled
       end if;
       annotation(
@@ -234,18 +222,13 @@ package Hydrodynamic
       </html>"));
     end PTO6D;
 
-    block HydrostaticForce6D "6-Dimensional Hydrostatic Force and Torque Calculation"
+    model HydrostaticForce6D "6-Dimensional Hydrostatic Force and Torque Calculation"
+     
       extends Modelica.Blocks.Icons.Block;
-      // Input ports
-      Modelica.Blocks.Interfaces.RealInput u[3] "Linear displacement vector [m]" annotation(
-        Placement(transformation(origin = {-106, 50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-96, 50}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput theta[3] "Angular displacement vector [rad]" annotation(
-        Placement(transformation(origin = {-106, -50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-96, -50}, extent = {{-20, -20}, {20, 20}})));
-      // Output ports
-      Modelica.Blocks.Interfaces.RealOutput y[3] "Translational hydrostatic force vector [N]" annotation(
-        Placement(transformation(origin = {108, 50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {102, 50}, extent = {{-10, -10}, {10, 10}})));
-      Modelica.Blocks.Interfaces.RealOutput y1[3] "Rotational hydrostatic torque vector [N*m]" annotation(
-        Placement(transformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {102, -50}, extent = {{-10, -10}, {10, 10}})));
+      extends Hydrodynamic.Connector.absolutePosition_con;
+      extends Hydrodynamic.Connector.forceTorque_con;
+    
+    
       // Hydrostatic restoring coefficients
       parameter Real G1 = 0 "Hydrostatic restoring coefficient for x-axis translation [N/m]";
       parameter Real G2 = 0 "Hydrostatic restoring coefficient for y-axis translation [N/m]";
@@ -254,27 +237,30 @@ package Hydrodynamic
       parameter Real G5 = 0 "Hydrostatic restoring coefficient for y-axis rotation [N*m/rad]";
       parameter Real G6 = 0 "Hydrostatic restoring coefficient for z-axis rotation [N*m/rad]";
       parameter Real G[6, 6] = diagonal({G1, G2, G3, G4, G5, G6}) "Combined hydrostatic restoring coefficient matrix";
-      // Control parameter
+      
+      
+      // Enable/disable force
       parameter Boolean enableHydrostaticForce = true "Switch to enable/disable hydrostatic force calculation";
+      
       // Internal variables
       Real u_theta[6] "Combined displacement vector [m, rad]";
-      Real F[6] "Hydrostatic force/torque vector [N, N*m]";
+      Real fhs[6] "Hydrostatic force/torque vector [N, N*m]";
+      
     equation
 // Combine linear and angular displacements into a single vector
-      u_theta[1:3] = u;
-      u_theta[4:6] = theta;
+      u_theta = cat(1,u_abs,theta_abs);
 // Calculate the 6D hydrostatic force/torque vector
-      F = -G*u_theta;
+      fhs = -G*u_theta;
 // Use the switch to conditionally output the force and torque
       if enableHydrostaticForce then
-        y = F[1:3];
+        F = fhs[1:3];
 // Translational hydrostatic force
-        y1 = F[4:6];
+        T = fhs[4:6];
 // Rotational hydrostatic torque
       else
-        y = zeros(3);
+        F = zeros(3);
 // Zero translational hydrostatic force when disabled
-        y1 = zeros(3);
+        T = zeros(3);
 // Zero rotational hydrostatic torque when disabled
       end if;
       annotation(
@@ -304,6 +290,9 @@ package Hydrodynamic
 
     model RadiationF "1D Radiation Force Calculation for Hydrodynamic Systems"
       extends Modelica.Blocks.Icons.Block;
+      extends Hydrodynamic.Connector.absolutePosition_con;
+      extends Hydrodynamic.Connector.absoluteVelocity_con;
+      extends Hydrodynamic.Connector.forceTorque_con;
       // Input connectors
       Modelica.Blocks.Interfaces.RealInput z[3] "Position vector [m] (not used in calculations)" annotation(
         Placement(transformation(extent = {{-140, -60}, {-100, -20}})));
@@ -403,24 +392,24 @@ package Hydrodynamic
         Placement(transformation(origin = {58, 34}, extent = {{-10, 10}, {10, -10}})));
       Modelica.Mechanics.MultiBody.Forces.WorldForceAndTorque forceAndTorque1 "Apply PTO forces and torques" annotation(
         Placement(transformation(origin = {60, -42}, extent = {{-10, 10}, {10, -10}})));
-  Modelica.Mechanics.MultiBody.Forces.WorldForceAndTorque forceAndTorque2 "Apply hydrostatic forces and torques" annotation(
+      Modelica.Mechanics.MultiBody.Forces.WorldForceAndTorque forceAndTorque2 "Apply hydrostatic forces and torques" annotation(
         Placement(transformation(origin = {62, -6}, extent = {{-10, 10}, {10, -10}})));
       Modelica.Mechanics.MultiBody.Forces.WorldForce force "Apply radiation forces" annotation(
         Placement(transformation(origin = {56, 66}, extent = {{-10, -10}, {10, 10}})));
     equation
-      connect(absoluteVelocity.v, pto6d.u) annotation(
+      connect(absoluteVelocity.v, pto6d.v_abs) annotation(
         Line(points = {{-39, 70}, {-34, 70}, {-34, -40}, {8, -40}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(hydrostaticForce6D.y, forceAndTorque2.force) annotation(
+      connect(hydrostaticForce6D.F, forceAndTorque2.force) annotation(
         Line(points = {{26, -1}, {26, 0}, {50, 0}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(hydrostaticForce6D.y1, forceAndTorque2.torque) annotation(
+      connect(hydrostaticForce6D.T, forceAndTorque2.torque) annotation(
         Line(points = {{26, -11}, {26, -12}, {50, -12}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(pto6d.y1, forceAndTorque1.torque) annotation(
+      connect(pto6d.T, forceAndTorque1.torque) annotation(
         Line(points = {{28, -49}, {50, -49}, {50, -48}, {48.2, -48}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(pto6d.y, forceAndTorque1.force) annotation(
+      connect(pto6d.F, forceAndTorque1.force) annotation(
         Line(points = {{28, -43}, {50, -43}, {50, -36}, {48.2, -36}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(dragForce6D.y1, forceAndTorque.torque) annotation(
+      connect(dragForce6D.T, forceAndTorque.torque) annotation(
         Line(points = {{28.8, 29}, {46.8, 29}, {46.8, 27}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(dragForce6D.y, forceAndTorque.force) annotation(
+      connect(dragForce6D.F, forceAndTorque.force) annotation(
         Line(points = {{29, 39}, {45, 39}}, color = {0, 0, 127}, thickness = 0.5));
       connect(forceAndTorque2.frame_b, frame_b) annotation(
         Line(points = {{72, -6}, {78, -6}, {78, 0}, {102, 0}}, color = {95, 95, 95}));
@@ -428,9 +417,9 @@ package Hydrodynamic
         Line(points = {{70, -42}, {86, -42}, {86, 0}, {102, 0}}, color = {95, 95, 95}));
       connect(forceAndTorque.frame_b, frame_b) annotation(
         Line(points = {{68, 34}, {78, 34}, {78, 0}, {102, 0}}, color = {95, 95, 95}));
-      connect(absoluteAngles.angles, pto6d.theta) annotation(
+      connect(absoluteAngles.angles, pto6d.theta_abs) annotation(
         Line(points = {{-39, -76}, {-15.5, -76}, {-15.5, -52}, {8, -52}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absoluteAngularVelocity.w, pto6d.omega) annotation(
+      connect(absoluteAngularVelocity.w, pto6d.omega_abs) annotation(
         Line(points = {{-39, -48}, {8, -48}}, color = {0, 0, 127}, thickness = 0.5));
       connect(absoluteVelocity.v, radiationF.v) annotation(
         Line(points = {{-39, 70}, {6, 70}}, color = {0, 0, 127}, thickness = 0.5));
@@ -446,15 +435,15 @@ package Hydrodynamic
         Line(points = {{-102, 0}, {-60, 0}, {-60, -76}}));
       connect(frame_a, absoluteVelocity.frame_a) annotation(
         Line(points = {{-102, 0}, {-60, 0}, {-60, 70}}));
-      connect(absolutePosition.r, hydrostaticForce6D.u) annotation(
+      connect(absolutePosition.r, hydrostaticForce6D.u_abs) annotation(
         Line(points = {{-38, 0}, {6, 0}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absoluteVelocity.v, dragForce6D.u) annotation(
+      connect(absoluteVelocity.v, dragForce6D.v_abs) annotation(
         Line(points = {{-38, 70}, {-34, 70}, {-34, 40}, {8, 40}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absoluteAngularVelocity.w, hydrostaticForce6D.theta) annotation(
+      connect(absoluteAngularVelocity.w, hydrostaticForce6D.theta_abs) annotation(
         Line(points = {{-38, -48}, {-34, -48}, {-34, -10}, {6, -10}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absolutePosition.r, pto6d.s) annotation(
+      connect(absolutePosition.r, pto6d.u_abs) annotation(
         Line(points = {{-38, 0}, {-34, 0}, {-34, -44}, {8, -44}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(absoluteAngularVelocity.w, dragForce6D.a) annotation(
+      connect(absoluteAngularVelocity.w, dragForce6D.omega_abs) annotation(
         Line(points = {{-38, -48}, {-34, -48}, {-34, 28}, {8, 28}}, color = {0, 0, 127}, thickness = 0.5));
       connect(absolutePosition.r, radiationF.z) annotation(
         Line(points = {{-38, 0}, {-34, 0}, {-34, 62}, {6, 62}}, color = {0, 0, 127}, thickness = 0.5));
@@ -594,7 +583,7 @@ package Hydrodynamic
         Icon(graphics = {Text(extent = {{-100, 100}, {100, -100}}, textString = "1D Exc F", fontName = "Arial")}));
     end ExcitationForce;
     annotation(
-    Documentation(info = "<html>
+      Documentation(info = "<html>
       <h4>Forces Package for Hydrodynamic Systems</h4>
       <p>This package contains various force models used in hydrodynamic systems simulations, particularly for marine and offshore applications.</p>
       <p>Included models:</p>
@@ -614,47 +603,12 @@ package Hydrodynamic
       </ul>
       <p>Each model is thoroughly documented and includes customizable parameters to adapt to various scenarios and environmental conditions.</p>
     </html>"),
-    Icon(coordinateSystem(preserveAspectRatio = false, extent = {{-100, -100}, {100, 100}}),
-      graphics = {
-        Rectangle(
-          extent = {{-100, 100}, {100, -100}},
-          lineColor = {0, 0, 0},
-          fillColor = {215, 235, 255},
-          fillPattern = FillPattern.Solid),
-        Line(
-          points = {{-80, -80}, {-80, 60}, {-60, 80}, {60, 80}, {80, 60}, {80, -80}},
-          color = {0, 0, 0},
-          thickness = 0.5),
-        Line(
-          points = {{-60, -80}, {-40, -60}, {-20, -80}, {0, -60}, {20, -80}, {40, -60}, {60, -80}},
-          color = {0, 70, 150},
-          thickness = 1),
-        Polygon(
-          points = {{-40, 40}, {0, 60}, {40, 40}, {0, 20}, {-40, 40}},
-          lineColor = {0, 0, 0},
-          fillColor = {170, 213, 255},
-          fillPattern = FillPattern.Solid),
-        Line(points = {{0, 60}, {0, -10}}, color = {0, 0, 0}),
-        Ellipse(
-          extent = {{-6, -4}, {6, -16}},
-          lineColor = {0, 0, 0},
-          fillColor = {255, 0, 0},
-          fillPattern = FillPattern.Solid),
-        Line(points = {{-80, 0}, {80, 0}}, color = {0, 0, 0}, pattern = LinePattern.Dot),
-        Text(
-          extent = {{-100, -90}, {100, -120}},
-          lineColor = {0, 0, 0},
-          fillColor = {215, 235, 255},
-          fillPattern = FillPattern.Solid,
-          textString = "%name")
-      }
-    )
-  );
+      Icon(coordinateSystem(preserveAspectRatio = false, extent = {{-100, -100}, {100, 100}}), graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 0}, fillColor = {215, 235, 255}, fillPattern = FillPattern.Solid), Line(points = {{-80, -80}, {-80, 60}, {-60, 80}, {60, 80}, {80, 60}, {80, -80}}, color = {0, 0, 0}, thickness = 0.5), Line(points = {{-60, -80}, {-40, -60}, {-20, -80}, {0, -60}, {20, -80}, {40, -60}, {60, -80}}, color = {0, 70, 150}, thickness = 1), Polygon(points = {{-40, 40}, {0, 60}, {40, 40}, {0, 20}, {-40, 40}}, lineColor = {0, 0, 0}, fillColor = {170, 213, 255}, fillPattern = FillPattern.Solid), Line(points = {{0, 60}, {0, -10}}, color = {0, 0, 0}), Ellipse(extent = {{-6, -4}, {6, -16}}, lineColor = {0, 0, 0}, fillColor = {255, 0, 0}, fillPattern = FillPattern.Solid), Line(points = {{-80, 0}, {80, 0}}, color = {0, 0, 0}, pattern = LinePattern.Dot), Text(extent = {{-100, -90}, {100, -120}}, lineColor = {0, 0, 0}, fillColor = {215, 235, 255}, fillPattern = FillPattern.Solid, textString = "%name")}));
   end Forces;
 
   package WaveProfile
     package RegularWave
-  /* Package for regular wave elevation profile and excitation force calculations */
+      /* Package for regular wave elevation profile and excitation force calculations */
 
       model LinearWave "Implementation of linear Airy wave model with excitation force calculation"
         extends Modelica.Blocks.Icons.Block;
@@ -734,18 +688,11 @@ package Hydrodynamic
             <li>LinearWave: A model implementing the linear Airy wave theory</li>
           </ul>
         </html>"),
-        Icon(graphics = {
-          Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {230, 230, 250}, fillPattern = FillPattern.Solid),
-          Line(points = {{-80, 60}, {-40, 80}, {0, 60}, {40, 80}, {80, 60}}, color = {0, 0, 255}, smooth = Smooth.Bezier),
-          Line(points = {{-80, 20}, {-40, 40}, {0, 20}, {40, 40}, {80, 20}}, color = {0, 0, 255}, smooth = Smooth.Bezier),
-          Line(points = {{-80, -20}, {-40, 0}, {0, -20}, {40, 0}, {80, -20}}, color = {0, 0, 255}, smooth = Smooth.Bezier)
-        })
-      );
-    
+        Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {230, 230, 250}, fillPattern = FillPattern.Solid), Line(points = {{-80, 60}, {-40, 80}, {0, 60}, {40, 80}, {80, 60}}, color = {0, 0, 255}, smooth = Smooth.Bezier), Line(points = {{-80, 20}, {-40, 40}, {0, 20}, {40, 40}, {80, 20}}, color = {0, 0, 255}, smooth = Smooth.Bezier), Line(points = {{-80, -20}, {-40, 0}, {0, -20}, {40, 0}, {80, -20}}, color = {0, 0, 255}, smooth = Smooth.Bezier)}));
     end RegularWave;
 
-package IrregularWave
-  /* Package for irregular wave elevation profile and excitation force calculations */
+    package IrregularWave
+      /* Package for irregular wave elevation profile and excitation force calculations */
 
       model PiersonMoskowitzWave "Implementation of Pierson-Moskowitz (PM) wave spectrum for irregular wave generation"
         extends Modelica.Blocks.Icons.Block;
@@ -762,8 +709,10 @@ package IrregularWave
         constant Real pi = Modelica.Constants.pi "Mathematical constant pi";
         constant Real g = Modelica.Constants.g_n "Acceleration due to gravity [m/s^2]";
         // File input parameters
-        parameter String fileName = "C:/Users/Duke/SysModel2024/OET_Sys-MoDEL/tutorial/hydroCoeff.mat" "Path to the hydroCoeff.mat file" annotation(
+        parameter String fileName =    
+        "C:/Users/Thomas/Documents/GitHub/6-DoF-Hydrodynamics/hydroCoeff.mat" "Path to the hydroCoeff.mat file" annotation(
           Dialog(group = "File Input"));
+        
         parameter Integer wDims[:] = Modelica.Utilities.Streams.readMatrixSize(fileName, "hydroCoeff.w") "Dimensions of the frequency vector";
         parameter Integer wSize = wDims[2] "Size of the frequency vector";
         parameter Real F_excRe[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.FexcRe", 1, wSize)) "Real part of excitation force coefficients";
@@ -853,53 +802,63 @@ package IrregularWave
           experiment(StartTime = 0, StopTime = 500, Tolerance = 1e-08, Interval = 0.05));
       end PiersonMoskowitzWave;
 
-      model BretschneiderWave
-        "Implementation of Bretschneider wave spectrum for irregular wave generation"
+      model BretschneiderWave "Implementation of Bretschneider wave spectrum for irregular wave generation"
         extends Modelica.Blocks.Icons.Block;
         import Modelica.Math.Vectors;
-      // Internal connector for wave properties
+        // Internal connector for wave properties
         OceanEngineeringToolbox.Internal.Connectors.WaveOutConn wconn "Internal connector for wave properties";
         // Output connector for excitation force
         Modelica.Blocks.Interfaces.RealOutput y[3] "Excitation force vector [N] (only vertical component non-zero)" annotation(
           Placement(transformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, 0}, extent = {{-10, -10}, {10, 10}})));
-      // Environmental constants
+        // Environmental constants
         constant Real pi = Modelica.Constants.pi "Mathematical constant pi";
         constant Real g = Modelica.Constants.g_n "Acceleration due to gravity [m/s^2]";
-      // File input parameters
-        parameter String fileName = "C:/Users/Duke/SysModel2024/OET_Sys-MoDEL/tutorial/hydroCoeff.mat" "Path to the hydroCoeff.mat file" annotation(Dialog(group = "File Input"));
+        // File input parameters
+        parameter String fileName = "C:/Users/Duke/SysModel2024/OET_Sys-MoDEL/tutorial/hydroCoeff.mat" "Path to the hydroCoeff.mat file" annotation(
+          Dialog(group = "File Input"));
         parameter Integer wDims[:] = Modelica.Utilities.Streams.readMatrixSize(fileName, "hydroCoeff.w") "Dimensions of the frequency vector";
         parameter Integer wSize = wDims[2] "Size of the frequency vector";
         parameter Real F_excRe[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.FexcRe", 1, wSize)) "Real part of excitation force coefficients";
         parameter Real F_excIm[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.FexcIm", 1, wSize)) "Imaginary part of excitation force coefficients";
         parameter Real w[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.w", 1, wSize)) "Angular frequency vector [rad/s]";
-      // Wave and environmental parameters
-        parameter Modelica.Units.SI.Length d = 100 "Water depth [m]" annotation(Dialog(group = "Environmental Parameters"));
-        parameter Modelica.Units.SI.Density rho = 1025 "Density of seawater [kg/m^3]" annotation(Dialog(group = "Environmental Parameters"));
-        parameter Modelica.Units.SI.Length Hs = 2.5 "Significant Wave Height [m]" annotation(Dialog(group = "Wave Parameters"));
-        parameter Modelica.Units.SI.AngularFrequency omega_min = 0.03141 "Lowest frequency component [rad/s]" annotation(Dialog(group = "Spectrum Parameters"));
-        parameter Modelica.Units.SI.AngularFrequency omega_max = 3.141 "Highest frequency component [rad/s]" annotation(Dialog(group = "Spectrum Parameters"));
-        parameter Modelica.Units.SI.AngularFrequency omega_peak = 0.9423 "Peak spectral frequency [rad/s]" annotation(Dialog(group = "Spectrum Parameters"));
-        parameter Integer n_omega = 100 "Number of frequency components" annotation(Dialog(group = "Discretization"));
-        parameter Integer localSeed = 614657 "Local random seed for frequency selection" annotation(Dialog(group = "Random Generation"));
-        parameter Integer globalSeed = 30020 "Global random seed for frequency selection" annotation(Dialog(group = "Random Generation"));
+        // Wave and environmental parameters
+        parameter Modelica.Units.SI.Length d = 100 "Water depth [m]" annotation(
+          Dialog(group = "Environmental Parameters"));
+        parameter Modelica.Units.SI.Density rho = 1025 "Density of seawater [kg/m^3]" annotation(
+          Dialog(group = "Environmental Parameters"));
+        parameter Modelica.Units.SI.Length Hs = 2.5 "Significant Wave Height [m]" annotation(
+          Dialog(group = "Wave Parameters"));
+        parameter Modelica.Units.SI.AngularFrequency omega_min = 0.03141 "Lowest frequency component [rad/s]" annotation(
+          Dialog(group = "Spectrum Parameters"));
+        parameter Modelica.Units.SI.AngularFrequency omega_max = 3.141 "Highest frequency component [rad/s]" annotation(
+          Dialog(group = "Spectrum Parameters"));
+        parameter Modelica.Units.SI.AngularFrequency omega_peak = 0.9423 "Peak spectral frequency [rad/s]" annotation(
+          Dialog(group = "Spectrum Parameters"));
+        parameter Integer n_omega = 100 "Number of frequency components" annotation(
+          Dialog(group = "Discretization"));
+        parameter Integer localSeed = 614657 "Local random seed for frequency selection" annotation(
+          Dialog(group = "Random Generation"));
+        parameter Integer globalSeed = 30020 "Global random seed for frequency selection" annotation(
+          Dialog(group = "Random Generation"));
         parameter Real rnd_shft[n_omega] = OceanEngineeringToolbox.Internal.Functions.randomNumberGen(localSeed, globalSeed, n_omega) "Random shifts for frequency selection";
-        parameter Integer localSeed1 = 614757 "Local random seed for phase shifts" annotation(Dialog(group = "Random Generation"));
-        parameter Integer globalSeed1 = 40020 "Global random seed for phase shifts" annotation(Dialog(group = "Random Generation"));
+        parameter Integer localSeed1 = 614757 "Local random seed for phase shifts" annotation(
+          Dialog(group = "Random Generation"));
+        parameter Integer globalSeed1 = 40020 "Global random seed for phase shifts" annotation(
+          Dialog(group = "Random Generation"));
         parameter Real epsilon[n_omega] = OceanEngineeringToolbox.Internal.Functions.randomNumberGen(localSeed1, globalSeed1, n_omega) "Wave components phase shift";
-        parameter Real Trmp = 200 "Interval for ramping up of waves during start phase [s]" annotation(Dialog(group = "Simulation Parameters"));
-      // Derived parameters
+        parameter Real Trmp = 200 "Interval for ramping up of waves during start phase [s]" annotation(
+          Dialog(group = "Simulation Parameters"));
+        // Derived parameters
         parameter Real omega[n_omega] = OceanEngineeringToolbox.Internal.Functions.frequencySelector(omega_min, omega_max, rnd_shft) "Selected frequency components [rad/s]";
         parameter Real S[n_omega] = OceanEngineeringToolbox.Internal.Functions.spectrumGenerator_BRT(Hs, omega, omega_peak) "Spectral values for frequency components [m^2-s/rad]";
         parameter Modelica.Units.SI.Length zeta[n_omega] = sqrt(2*S*omega_min) "Wave amplitude components [m]";
         parameter Real Tp[n_omega] = 2*pi./omega "Wave period components [s]";
         parameter Real k[n_omega] = OceanEngineeringToolbox.Internal.Functions.waveNumber(d, omega) "Wave number components [1/m]";
-      // Variables
+        // Variables
         Real ExcCoeffRe[n_omega] "Real component of excitation coefficient for frequency components";
         Real ExcCoeffIm[n_omega] "Imaginary component of excitation coefficient for frequency components";
         Modelica.Units.SI.Length SSE "Sea surface elevation [m]";
-      
       equation
-      
 // Interpolate excitation coefficients (Re & Im) for each frequency component
         for i in 1:n_omega loop
           ExcCoeffRe[i] = Modelica.Math.Vectors.interpolate(w, F_excRe, omega[i])*rho*g;
@@ -907,8 +866,8 @@ package IrregularWave
         end for;
 // Calculate sea surface elevation (SSE) as the sum of all wave components
         SSE = sum(zeta.*cos(omega*time - 2*pi*epsilon));
-      // Calculate and apply ramping to the excitation force
-if time < Trmp then
+// Calculate and apply ramping to the excitation force
+        if time < Trmp then
 // Ramp up the excitation force during the initial phase
           wconn.F_exc = 0.5*(1 + cos(pi + (pi*time/Trmp)))*sum((ExcCoeffRe.*zeta.*cos(omega*time - 2*pi*epsilon)) - (ExcCoeffIm.*zeta.*sin(omega*time - 2*pi*epsilon)));
         else
@@ -939,8 +898,7 @@ if time < Trmp then
             </ul>
           </html>"),
           Icon(graphics = {Line(origin = {-50.91, 48.08}, points = {{-33.2809, -22.5599}, {-21.2809, -20.5599}, {-13.2809, 27.4401}, {6.71907, -20.5599}, {24.7191, -24.5599}, {42.7191, -24.5599}, {44.7191, -24.5599}}, color = {255, 0, 0}, smooth = Smooth.Bezier), Line(origin = {-37, 51}, points = {{-51, 29}, {-51, -29}, {37, -29}}), Text(origin = {6, 55}, extent = {{-40, 17}, {40, -17}}, textString = "Hs"), Line(origin = {22, 4}, points = {{0, 22}, {0, -22}}, thickness = 1, arrow = {Arrow.None, Arrow.Filled}), Line(origin = {-7.57, -61.12}, points = {{-82.4341, -12.8774}, {-76.4341, -2.87735}, {-72.4341, -6.87735}, {-62.4341, 13.1226}, {-50.4341, -26.8774}, {-46.4341, -20.8774}, {-38.4341, -26.8774}, {-34.4341, -18.8774}, {-34.4341, 3.12265}, {-26.4341, 1.12265}, {-20.4341, 7.12265}, {-12.4341, 9.12265}, {-8.43408, 19.1226}, {1.56592, -4.87735}, {7.56592, -24.8774}, {19.5659, -6.87735}, {21.5659, 9.12265}, {31.5659, 13.1226}, {39.5659, -0.87735}, {43.5659, 11.1226}, {55.5659, 15.1226}, {63.5659, 27.1226}, {79.5659, -22.8774}}, color = {0, 0, 255}, smooth = Smooth.Bezier), Rectangle(origin = {100, 0}, fillColor = {85, 255, 127}, fillPattern = FillPattern.Solid, extent = {{-20, 20}, {20, -20}})}, coordinateSystem(initialScale = 0.1)),
-          experiment(StartTime = 0, StopTime = 500, Tolerance = 1e-08, Interval = 0.05)
-        );
+          experiment(StartTime = 0, StopTime = 500, Tolerance = 1e-08, Interval = 0.05));
       end BretschneiderWave;
 
       model JonswapWave "Implementation of JONSWAP wave spectrum for irregular wave generation"
@@ -954,10 +912,10 @@ if time < Trmp then
           Documentation(info = "<html>
             <p>Output connector for the calculated excitation force. Only the vertical component (3rd element) is non-zero.</p>
           </html>"));
-      // Environmental constants
+        // Environmental constants
         constant Real pi = Modelica.Constants.pi "Mathematical constant pi";
         constant Real g = Modelica.Constants.g_n "Acceleration due to gravity [m/s^2]";
-      // File input parameters
+        // File input parameters
         parameter String fileName = "C:/Users/Duke/SysModel2024/OET_Sys-MoDEL/tutorial/hydroCoeff.mat" "Path to the hydroCoeff.mat file" annotation(
           Dialog(group = "File Input"));
         parameter Integer wDims[:] = Modelica.Utilities.Streams.readMatrixSize(fileName, "hydroCoeff.w") "Dimensions of the frequency vector";
@@ -965,7 +923,7 @@ if time < Trmp then
         parameter Real F_excRe[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.FexcRe", 1, wSize)) "Real part of excitation force coefficients";
         parameter Real F_excIm[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.FexcIm", 1, wSize)) "Imaginary part of excitation force coefficients";
         parameter Real w[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.w", 1, wSize)) "Angular frequency vector [rad/s]";
-      // Wave and environmental parameters
+        // Wave and environmental parameters
         parameter Modelica.Units.SI.Length d = 100 "Water depth [m]" annotation(
           Dialog(group = "Wave Parameters"));
         parameter Modelica.Units.SI.Density rho = 1025 "Density of seawater [kg/m^3]" annotation(
@@ -996,19 +954,17 @@ if time < Trmp then
         parameter Real epsilon[n_omega] = OceanEngineeringToolbox.Internal.Functions.randomNumberGen(localSeed1, globalSeed1, n_omega) "Wave components phase shift";
         parameter Real Trmp = 200 "Interval for ramping up of waves during start phase [s]" annotation(
           Dialog(group = "Simulation Parameters"));
-      // Derived parameters
+        // Derived parameters
         parameter Real omega[n_omega] = OceanEngineeringToolbox.Internal.Functions.frequencySelector(omega_min, omega_max, rnd_shft) "Selected frequency components [rad/s]";
         parameter Real S[n_omega] = OceanEngineeringToolbox.Internal.Functions.spectrumGenerator_JONSWAP(Hs, omega, omega_peak, spectralWidth_min, spectralWidth_max) "Spectral values for frequency components [m^2-s/rad]";
         parameter Modelica.Units.SI.Length zeta[n_omega] = sqrt(2*S*omega_min) "Wave amplitude components [m]";
         parameter Real Tp[n_omega] = 2*pi./omega "Wave period components [s]";
         parameter Real k[n_omega] = OceanEngineeringToolbox.Internal.Functions.waveNumber(d, omega) "Wave number components [1/m]";
-      // Variables
+        // Variables
         Real ExcCoeffRe[n_omega] "Real component of excitation coefficient for frequency components";
         Real ExcCoeffIm[n_omega] "Imaginary component of excitation coefficient for frequency components";
         Modelica.Units.SI.Length SSE "Sea surface elevation [m]";
-      
       equation
-      
 // Interpolate excitation coefficients (Re & Im) for each frequency component
         for i in 1:n_omega loop
           ExcCoeffRe[i] = Modelica.Math.Vectors.interpolate(w, F_excRe, omega[i])*rho*g;
@@ -1016,8 +972,8 @@ if time < Trmp then
         end for;
 // Calculate sea surface elevation (SSE) as the sum of all wave components
         SSE = sum(zeta.*cos(omega*time - 2*pi*epsilon));
-      // Calculate and apply ramping to the excitation force
-if time < Trmp then
+// Calculate and apply ramping to the excitation force
+        if time < Trmp then
 // Ramp up the excitation force during the initial phase
           wconn.F_exc = 0.5*(1 + cos(pi + (pi*time/Trmp)))*sum((ExcCoeffRe.*zeta.*cos(omega*time - 2*pi*epsilon)) - (ExcCoeffIm.*zeta.*sin(omega*time - 2*pi*epsilon)));
         else
@@ -1052,7 +1008,7 @@ if time < Trmp then
           experiment(StartTime = 0, StopTime = 500, Tolerance = 1e-08, Interval = 0.05));
       end JonswapWave;
       annotation(
-    Documentation(info = "<html>
+        Documentation(info = "<html>
       <p><strong>IrregularWave Package</strong></p>
       <p>This package provides models for generating irregular wave profiles and calculating associated excitation forces using various wave spectra commonly used in ocean engineering and naval architecture.</p>
       <p><em>Included Models:</em></p>
@@ -1070,22 +1026,10 @@ if time < Trmp then
       </ul>
       <p>Each model provides options for customizing sea state parameters and offers both wave elevation profiles and excitation force calculations.</p>
     </html>"),
-    Icon(graphics = {
-      Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {230, 230, 250}, fillPattern = FillPattern.Solid),
-      Line(points = {{-80, 0}, {-60, 20}, {-40, -20}, {-20, 10}, {0, -10}, {20, 30}, {40, -30}, {60, 15}, {80, -15}}, 
-           color = {0, 0, 255}, thickness = 2, smooth = Smooth.Bezier),
-      Text(extent = {{-90, -70}, {90, -90}}, lineColor = {0, 0, 255}, fillColor = {0, 0, 255}, 
-           fillPattern = FillPattern.Solid, textString = "Irregular Wave"),
-      Ellipse(extent = {{-15, 15}, {15, -15}}, lineColor = {255, 255, 0}, fillColor = {255, 255, 0}, 
-              fillPattern = FillPattern.Solid, origin = {-75, 75}),
-      Line(points = {{-65, 65}, {-55, 55}}, color = {255, 255, 0}, thickness = 1.5),
-      Line(points = {{-75, 60}, {-75, 50}}, color = {255, 255, 0}, thickness = 1.5),
-      Line(points = {{-85, 65}, {-95, 55}}, color = {255, 255, 0}, thickness = 1.5)
-    }));
+        Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {230, 230, 250}, fillPattern = FillPattern.Solid), Line(points = {{-80, 0}, {-60, 20}, {-40, -20}, {-20, 10}, {0, -10}, {20, 30}, {40, -30}, {60, 15}, {80, -15}}, color = {0, 0, 255}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-90, -70}, {90, -90}}, lineColor = {0, 0, 255}, fillColor = {0, 0, 255}, fillPattern = FillPattern.Solid, textString = "Irregular Wave"), Ellipse(extent = {{-15, 15}, {15, -15}}, lineColor = {255, 255, 0}, fillColor = {255, 255, 0}, fillPattern = FillPattern.Solid, origin = {-75, 75}), Line(points = {{-65, 65}, {-55, 55}}, color = {255, 255, 0}, thickness = 1.5), Line(points = {{-75, 60}, {-75, 50}}, color = {255, 255, 0}, thickness = 1.5), Line(points = {{-85, 65}, {-95, 55}}, color = {255, 255, 0}, thickness = 1.5)}));
     end IrregularWave;
-    
     annotation(
-    Documentation(info = "<html>
+      Documentation(info = "<html>
       <p><strong>WaveProfile Package</strong></p>
       <p>This package provides comprehensive models for generating wave profiles and calculating associated excitation forces for both regular and irregular waves. It is designed for use in ocean engineering, naval architecture, and offshore structure analysis.</p>
       
@@ -1112,42 +1056,25 @@ if time < Trmp then
       
       <p>This package is essential for various marine engineering applications, including offshore structure design, wave energy converter analysis, ship motion studies, and coastal engineering projects.</p>
     </html>"),
-    Icon(graphics = {
-      Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {230, 240, 255}, fillPattern = FillPattern.Solid),
-      
-      // Regular wave representation
-      Line(points = {{-90, 0}, {-60, 20}, {-30, -20}, {0, 20}, {30, -20}, {60, 20}, {90, 0}}, 
-           color = {0, 0, 200}, thickness = 2, smooth = Smooth.Bezier),
-      
-      // Irregular wave representation
-      Line(points = {{-90, -40}, {-75, -20}, {-60, -50}, {-45, -30}, {-30, -60}, {-15, -25}, {0, -55}, {15, -35}, {30, -65}, {45, -20}, {60, -50}, {75, -30}, {90, -60}},
-           color = {0, 100, 255}, thickness = 2, smooth = Smooth.Bezier),
-      
-      // Sun symbol
-      Ellipse(extent = {{-20, 90}, {20, 50}}, lineColor = {255, 215, 0}, fillColor = {255, 215, 0}, fillPattern = FillPattern.Solid),
-      Line(points = {{-30, 70}, {30, 70}}, color = {255, 215, 0}, thickness = 2),
-      Line(points = {{-20, 85}, {20, 55}}, color = {255, 215, 0}, thickness = 2),
-      Line(points = {{-20, 55}, {20, 85}}, color = {255, 215, 0}, thickness = 2),
-      
-      // Text
-      Text(extent = {{-90, -70}, {90, -95}}, lineColor = {0, 0, 255}, 
-           textString = "Wave Profile", fontSize = 14)
-    })
-  );
+      Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {230, 240, 255}, fillPattern = FillPattern.Solid), // Regular wave representation
+      Line(points = {{-90, 0}, {-60, 20}, {-30, -20}, {0, 20}, {30, -20}, {60, 20}, {90, 0}}, color = {0, 0, 200}, thickness = 2, smooth = Smooth.Bezier), // Irregular wave representation
+      Line(points = {{-90, -40}, {-75, -20}, {-60, -50}, {-45, -30}, {-30, -60}, {-15, -25}, {0, -55}, {15, -35}, {30, -65}, {45, -20}, {60, -50}, {75, -30}, {90, -60}}, color = {0, 100, 255}, thickness = 2, smooth = Smooth.Bezier), // Sun symbol
+      Ellipse(extent = {{-20, 90}, {20, 50}}, lineColor = {255, 215, 0}, fillColor = {255, 215, 0}, fillPattern = FillPattern.Solid), Line(points = {{-30, 70}, {30, 70}}, color = {255, 215, 0}, thickness = 2), Line(points = {{-20, 85}, {20, 55}}, color = {255, 215, 0}, thickness = 2), Line(points = {{-20, 55}, {20, 85}}, color = {255, 215, 0}, thickness = 2), // Text
+      Text(extent = {{-90, -70}, {90, -95}}, lineColor = {0, 0, 255}, textString = "Wave Profile", fontSize = 14)}));
   end WaveProfile;
 
   package Internal
     /* Internal library of core functions and connectors for ocean engineering applications
-       This package contains essential components for wave modeling and structure interactions */
-  
+           This package contains essential components for wave modeling and structure interactions */
+
     package Functions
       /* Package defining explicit library functions for wave calculations and random number generation
-         This package contains a collection of functions essential for ocean engineering simulations,
-         including wave number calculations, random number generation, and various wave spectrum generators. */
-    
+               This package contains a collection of functions essential for ocean engineering simulations,
+               including wave number calculations, random number generation, and various wave spectrum generators. */
+
       function waveNumber "Function to iteratively compute the wave number from frequency components"
         /* Uses the dispersion relationship for water waves to calculate wave numbers
-           This function implements an iterative method to solve the implicit dispersion equation */
+                   This function implements an iterative method to solve the implicit dispersion equation */
         input Real d "Water depth [m]";
         input Real omega[:] "Array of wave frequency components [rad/s]";
         output Real k[size(omega, 1)] "Array of wave number components [rad/m]";
@@ -1174,7 +1101,7 @@ if time < Trmp then
         end for;
         k := 2*pi./L;
         annotation(
-          Documentation(info="<html>
+          Documentation(info = "<html>
             <p>Syntax: k = waveNumber(d, omega)</p>
             <p>Description: This function calculates wave numbers for given frequencies and water depth using the dispersion relationship for water waves. It employs an iterative method to solve the implicit dispersion equation.</p>
             <p>Inputs:</p>
@@ -1194,43 +1121,33 @@ if time < Trmp then
               <li>Convert wavelengths to wave numbers</li>
             </ol>
           </html>"),
-          Icon(graphics={
-            Rectangle(extent={{-100,100},{100,-100}}, lineColor={0,0,255}, fillColor={255,255,255}, fillPattern=FillPattern.Solid),
-            Text(extent={{-90,50},{90,-50}}, textString="k(ω)", textStyle={TextStyle.Bold}),
-            Line(points={{-80,-80},{80,80}}, color={0,0,255}, thickness=0.5)
-          }),
-          Diagram(graphics={
-            Text(extent={{-100,80},{100,40}}, textString="Wave Number Calculation"),
-            Line(points={{-80,0},{80,0}}, color={0,0,255}),
-            Line(points={{0,-80},{0,80}}, color={0,0,255}),
-            Text(extent={{-60,-20},{60,-60}}, textString="k = 2π/L")
-          }),
-          experiment(StopTime=1.0, Tolerance=1e-06)
-        );
+          Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid), Text(extent = {{-90, 50}, {90, -50}}, textString = "k(ω)", textStyle = {TextStyle.Bold}), Line(points = {{-80, -80}, {80, 80}}, color = {0, 0, 255}, thickness = 0.5)}),
+          Diagram(graphics = {Text(extent = {{-100, 80}, {100, 40}}, textString = "Wave Number Calculation"), Line(points = {{-80, 0}, {80, 0}}, color = {0, 0, 255}), Line(points = {{0, -80}, {0, 80}}, color = {0, 0, 255}), Text(extent = {{-60, -20}, {60, -60}}, textString = "k = 2π/L")}),
+          experiment(StopTime = 1.0, Tolerance = 1e-06));
       end waveNumber;
-    
+
       function randomNumberGen "Function to generate random numbers using XOR shift algorithm"
-      /* Produces a vector of random numbers based on local and global seeds
-         This function utilizes the Xorshift64star algorithm for efficient random number generation */
-      input Integer ls = 614657 "Local seed for random number generation";
-      input Integer gs = 30020 "Global seed for random number generation";
-      input Integer n = 100 "Number of random numbers to generate";
-      output Real r64[n] "Vector of generated random numbers";
-    protected
-      Integer state64[2](each start = 0, each fixed = true) "State vector for XOR shift algorithm";
-    algorithm
-      state64[1] := 0;
-      state64[2] := 0;
-      for i in 1:n loop
-        if i == 1 then
-          state64 := Modelica.Math.Random.Generators.Xorshift64star.initialState(ls, gs);
-          r64[i] := 0;
-        else
-          (r64[i], state64) := Modelica.Math.Random.Generators.Xorshift64star.random((state64));
-        end if;
-      end for;
-      annotation(
-        Documentation(info="<html>
+        /* Produces a vector of random numbers based on local and global seeds
+                 This function utilizes the Xorshift64star algorithm for efficient random number generation */
+        input Integer ls = 614657 "Local seed for random number generation";
+        input Integer gs = 30020 "Global seed for random number generation";
+        input Integer n = 100 "Number of random numbers to generate";
+        output Real r64[n] "Vector of generated random numbers";
+      protected
+        Integer state64[2](each start = 0, each fixed = true) "State vector for XOR shift algorithm";
+      algorithm
+        state64[1] := 0;
+        state64[2] := 0;
+        for i in 1:n loop
+          if i == 1 then
+            state64 := Modelica.Math.Random.Generators.Xorshift64star.initialState(ls, gs);
+            r64[i] := 0;
+          else
+            (r64[i], state64) := Modelica.Math.Random.Generators.Xorshift64star.random((state64));
+          end if;
+        end for;
+        annotation(
+          Documentation(info = "<html>
           <p>Syntax: r64 = randomNumberGen(ls, gs, n)</p>
           <p>Description: This function generates a vector of random numbers using the Xorshift64star algorithm, which is known for its efficiency and good statistical properties.</p>
           <p>Inputs:</p>
@@ -1245,30 +1162,26 @@ if time < Trmp then
           </ul>
           <p>Algorithm: The function uses the Xorshift64star algorithm to generate random numbers based on the provided seeds.</p>
         </html>"),
-        Icon(graphics={
-          Rectangle(extent={{-100,100},{100,-100}}, lineColor={0,0,255}, fillColor={255,255,255}, fillPattern=FillPattern.Solid),
-          Text(extent={{-90,50},{90,-50}}, textString="RNG", textStyle={TextStyle.Bold})
-        })
-      );
-    end randomNumberGen;
-    
-    function frequencySelector "Function to randomly select frequency components within a specified range"
-      /* Uses a random phase vector to perturb frequencies
-         This function ensures a good distribution of frequencies for irregular wave generation */
-      input Real omega_min "Minimum frequency [rad/s]";
-      input Real omega_max "Maximum frequency [rad/s]";
-      input Real epsilon[:] "Random phase vector for frequency perturbation";
-      output Real omega[size(epsilon, 1)] "Output vector of selected frequency components [rad/s]";
-    protected
-      parameter Real ref_omega[size(epsilon, 1)] = omega_min:(omega_max - omega_min)/(size(epsilon, 1) - 1):omega_max "Reference frequency vector [rad/s]";
-    algorithm
-      omega[1] := omega_min;
-      for i in 2:size(epsilon, 1) - 1 loop
-        omega[i] := ref_omega[i] + epsilon[i]*omega_min;
-      end for;
-      omega[size(epsilon, 1)] := omega_max;
-      annotation(
-        Documentation(info="<html>
+          Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid), Text(extent = {{-90, 50}, {90, -50}}, textString = "RNG", textStyle = {TextStyle.Bold})}));
+      end randomNumberGen;
+
+      function frequencySelector "Function to randomly select frequency components within a specified range"
+        /* Uses a random phase vector to perturb frequencies
+                 This function ensures a good distribution of frequencies for irregular wave generation */
+        input Real omega_min "Minimum frequency [rad/s]";
+        input Real omega_max "Maximum frequency [rad/s]";
+        input Real epsilon[:] "Random phase vector for frequency perturbation";
+        output Real omega[size(epsilon, 1)] "Output vector of selected frequency components [rad/s]";
+      protected
+        parameter Real ref_omega[size(epsilon, 1)] = omega_min:(omega_max - omega_min)/(size(epsilon, 1) - 1):omega_max "Reference frequency vector [rad/s]";
+      algorithm
+        omega[1] := omega_min;
+        for i in 2:size(epsilon, 1) - 1 loop
+          omega[i] := ref_omega[i] + epsilon[i]*omega_min;
+        end for;
+        omega[size(epsilon, 1)] := omega_max;
+        annotation(
+          Documentation(info = "<html>
           <p>Syntax: omega = frequencySelector(omega_min, omega_max, epsilon)</p>
           <p>Description: This function selects frequency components within a specified range, using a random phase vector to perturb the frequencies. This ensures a good distribution of frequencies for irregular wave generation.</p>
           <p>Inputs:</p>
@@ -1283,28 +1196,24 @@ if time < Trmp then
           </ul>
           <p>Algorithm: The function creates a reference frequency vector and then perturbs it using the random phase vector, ensuring the first and last frequencies are exactly omega_min and omega_max.</p>
         </html>"),
-        Icon(graphics={
-          Rectangle(extent={{-100,100},{100,-100}}, lineColor={0,0,255}, fillColor={255,255,255}, fillPattern=FillPattern.Solid),
-          Text(extent={{-90,50},{90,-50}}, textString="ω(ε)", textStyle={TextStyle.Bold})
-        })
-      );
-    end frequencySelector;
-    
-    function spectrumGenerator_PM "Function to generate Pierson-Moskowitz spectrum"
-      /* Calculates spectral values for given frequencies based on significant wave height
-         This function implements the Pierson-Moskowitz spectrum, suitable for fully developed seas */
-      input Real Hs = 1 "Significant wave height [m]";
-      input Real omega[:] "Array of frequency components [rad/s]";
-      output Real spec[size(omega, 1)] "Array of spectral values for input frequencies [m^2s]";
-    protected
-      constant Real pi = Modelica.Constants.pi "Mathematical constant pi";
-      constant Real g = Modelica.Constants.g_n "Gravitational acceleration [m/s^2]";
-    algorithm
-      for i in 1:size(omega, 1) loop
-        spec[i] := 0.0081*g^2/omega[i]^5*exp(-0.0358*(g/(Hs*omega[i]^2))^2);
-      end for;
-      annotation(
-        Documentation(info="<html>
+          Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid), Text(extent = {{-90, 50}, {90, -50}}, textString = "ω(ε)", textStyle = {TextStyle.Bold})}));
+      end frequencySelector;
+
+      function spectrumGenerator_PM "Function to generate Pierson-Moskowitz spectrum"
+        /* Calculates spectral values for given frequencies based on significant wave height
+                 This function implements the Pierson-Moskowitz spectrum, suitable for fully developed seas */
+        input Real Hs = 1 "Significant wave height [m]";
+        input Real omega[:] "Array of frequency components [rad/s]";
+        output Real spec[size(omega, 1)] "Array of spectral values for input frequencies [m^2s]";
+      protected
+        constant Real pi = Modelica.Constants.pi "Mathematical constant pi";
+        constant Real g = Modelica.Constants.g_n "Gravitational acceleration [m/s^2]";
+      algorithm
+        for i in 1:size(omega, 1) loop
+          spec[i] := 0.0081*g^2/omega[i]^5*exp(-0.0358*(g/(Hs*omega[i]^2))^2);
+        end for;
+        annotation(
+          Documentation(info = "<html>
           <p>Syntax: spec = spectrumGenerator_PM(Hs, omega)</p>
           <p>Description: This function generates the Pierson-Moskowitz spectrum, which is suitable for fully developed seas. It calculates spectral values for given frequencies based on the significant wave height.</p>
           <p>Inputs:</p>
@@ -1318,29 +1227,25 @@ if time < Trmp then
           </ul>
           <p>Algorithm: The function calculates spectral values using the Pierson-Moskowitz formula: S(ω) = 0.0081*g^2/ω^5 * exp(-0.0358*(g/(Hs*ω^2))^2)</p>
         </html>"),
-        Icon(graphics={
-          Rectangle(extent={{-100,100},{100,-100}}, lineColor={0,0,255}, fillColor={255,255,255}, fillPattern=FillPattern.Solid),
-          Text(extent={{-90,50},{90,-50}}, textString="PM", textStyle={TextStyle.Bold})
-        })
-      );
-    end spectrumGenerator_PM;
-    
-    function spectrumGenerator_BRT "Function to generate Bretschneider spectrum"
-      /* Calculates spectral values based on significant wave height and peak frequency
-         This function implements the Bretschneider spectrum, a two-parameter spectrum for fetch-limited seas */
-      input Real Hs = 1 "Significant wave height [m]";
-      input Real omega[:] "Array of frequency components [rad/s]";
-      input Real omega_peak = 0.9423 "Peak spectral frequency [rad/s]";
-      output Real spec[size(omega, 1)] "Array of spectral values for input frequencies [m^2s]";
-    protected
-      constant Real pi = Modelica.Constants.pi "Mathematical constant pi";
-      constant Real g = Modelica.Constants.g_n "Gravitational acceleration [m/s^2]";
-    algorithm
-      for i in 1:size(omega, 1) loop
-        spec[i] := 1.9635*Hs^2*omega_peak^4/omega[i]^5*exp(-1.25*((omega_peak/omega[i])^4));
-      end for;
-      annotation(
-        Documentation(info="<html>
+          Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid), Text(extent = {{-90, 50}, {90, -50}}, textString = "PM", textStyle = {TextStyle.Bold})}));
+      end spectrumGenerator_PM;
+
+      function spectrumGenerator_BRT "Function to generate Bretschneider spectrum"
+        /* Calculates spectral values based on significant wave height and peak frequency
+                 This function implements the Bretschneider spectrum, a two-parameter spectrum for fetch-limited seas */
+        input Real Hs = 1 "Significant wave height [m]";
+        input Real omega[:] "Array of frequency components [rad/s]";
+        input Real omega_peak = 0.9423 "Peak spectral frequency [rad/s]";
+        output Real spec[size(omega, 1)] "Array of spectral values for input frequencies [m^2s]";
+      protected
+        constant Real pi = Modelica.Constants.pi "Mathematical constant pi";
+        constant Real g = Modelica.Constants.g_n "Gravitational acceleration [m/s^2]";
+      algorithm
+        for i in 1:size(omega, 1) loop
+          spec[i] := 1.9635*Hs^2*omega_peak^4/omega[i]^5*exp(-1.25*((omega_peak/omega[i])^4));
+        end for;
+        annotation(
+          Documentation(info = "<html>
           <p>Syntax: spec = spectrumGenerator_BRT(Hs, omega, omega_peak)</p>
           <p>Description: This function generates the Bretschneider spectrum, which is a two-parameter spectrum suitable for fetch-limited seas. It calculates spectral values based on significant wave height and peak frequency.</p>
           <p>Inputs:</p>
@@ -1355,40 +1260,36 @@ if time < Trmp then
           </ul>
           <p>Algorithm: The function calculates spectral values using the Bretschneider formula: S(ω) = 1.9635*Hs^2*ω_peak^4/ω^5 * exp(-1.25*((ω_peak/ω)^4))</p>
         </html>"),
-        Icon(graphics={
-          Rectangle(extent={{-100,100},{100,-100}}, lineColor={0,0,255}, fillColor={255,255,255}, fillPattern=FillPattern.Solid),
-          Text(extent={{-90,50},{90,-50}}, textString="BRT", textStyle={TextStyle.Bold})
-        })
-      );
-    end spectrumGenerator_BRT;
-    
-    function spectrumGenerator_JONSWAP "Function to generate JONSWAP (Joint North Sea Wave Project) spectrum"
-      /* Calculates spectral values based on significant wave height, peak frequency, and spectral width parameters
-         This function implements the JONSWAP spectrum, suitable for developing seas with fetch limitations */
-      input Real Hs = 1 "Significant wave height [m]";
-      input Real omega[:] "Array of frequency components [rad/s]";
-      input Real omega_peak = 0.9423 "Peak spectral frequency [rad/s]";
-      input Real spectralWidth_min "Minimum spectral width parameter";
-      input Real spectralWidth_max "Maximum spectral width parameter";
-      output Real spec[size(omega, 1)] "Array of spectral values for input frequencies [m^2s]";
-    protected
-      constant Real pi = Modelica.Constants.pi "Mathematical constant pi";
-      constant Real g = Modelica.Constants.g_n "Gravitational acceleration [m/s^2]";
-      constant Real gamma = 3.3 "Peak enhancement factor for JONSWAP spectrum";
-      Real sigma "Spectral width parameter";
-      Real b "Exponent for peak enhancement factor";
-    algorithm
-      for i in 1:size(omega, 1) loop
-        if omega[i] > omega_peak then
-          sigma := spectralWidth_max;
-        else
-          sigma := spectralWidth_min;
-        end if;
-        b := exp(-0.5*(((omega[i] - omega_peak)/(sigma*omega_peak))^2));
-        spec[i] := 0.0081*g^2/omega[i]^5*exp(-1.25*((omega_peak/omega[i])^4))*gamma^b;
-      end for;
-      annotation(
-        Documentation(info="<html>
+          Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid), Text(extent = {{-90, 50}, {90, -50}}, textString = "BRT", textStyle = {TextStyle.Bold})}));
+      end spectrumGenerator_BRT;
+
+      function spectrumGenerator_JONSWAP "Function to generate JONSWAP (Joint North Sea Wave Project) spectrum"
+        /* Calculates spectral values based on significant wave height, peak frequency, and spectral width parameters
+                 This function implements the JONSWAP spectrum, suitable for developing seas with fetch limitations */
+        input Real Hs = 1 "Significant wave height [m]";
+        input Real omega[:] "Array of frequency components [rad/s]";
+        input Real omega_peak = 0.9423 "Peak spectral frequency [rad/s]";
+        input Real spectralWidth_min "Minimum spectral width parameter";
+        input Real spectralWidth_max "Maximum spectral width parameter";
+        output Real spec[size(omega, 1)] "Array of spectral values for input frequencies [m^2s]";
+      protected
+        constant Real pi = Modelica.Constants.pi "Mathematical constant pi";
+        constant Real g = Modelica.Constants.g_n "Gravitational acceleration [m/s^2]";
+        constant Real gamma = 3.3 "Peak enhancement factor for JONSWAP spectrum";
+        Real sigma "Spectral width parameter";
+        Real b "Exponent for peak enhancement factor";
+      algorithm
+        for i in 1:size(omega, 1) loop
+          if omega[i] > omega_peak then
+            sigma := spectralWidth_max;
+          else
+            sigma := spectralWidth_min;
+          end if;
+          b := exp(-0.5*(((omega[i] - omega_peak)/(sigma*omega_peak))^2));
+          spec[i] := 0.0081*g^2/omega[i]^5*exp(-1.25*((omega_peak/omega[i])^4))*gamma^b;
+        end for;
+        annotation(
+          Documentation(info = "<html>
           <p>Syntax: spec = spectrumGenerator_JONSWAP(Hs, omega, omega_peak, spectralWidth_min, spectralWidth_max)</p>
           <p>Description: This function generates the JONSWAP (Joint North Sea Wave Project) spectrum, which is suitable for developing seas with fetch limitations. It calculates spectral values based on significant wave height, peak frequency, and spectral width parameters.</p>
           <p>Inputs:</p>
@@ -1405,13 +1306,8 @@ if time < Trmp then
           </ul>
           <p>Algorithm: The function calculates spectral values using the JONSWAP formula, which is an extension of the Pierson-Moskowitz spectrum with additional parameters to account for fetch-limited seas.</p>
         </html>"),
-        Icon(graphics={
-          Rectangle(extent={{-100,100},{100,-100}}, lineColor={0,0,255}, fillColor={255,255,255}, fillPattern=FillPattern.Solid),
-          Text(extent={{-90,50},{90,-50}}, textString="JONSWAP", textStyle={TextStyle.Bold})
-        })
-      );
-    end spectrumGenerator_JONSWAP;
-    
+          Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid), Text(extent = {{-90, 50}, {90, -50}}, textString = "JONSWAP", textStyle = {TextStyle.Bold})}));
+      end spectrumGenerator_JONSWAP;
       annotation(
         Documentation(info = "<html>
           <p>This package contains a set of functions essential for ocean engineering simulations:</p>
@@ -1425,31 +1321,26 @@ if time < Trmp then
           </ul>
           <p>These functions provide the core calculations needed for wave modeling and analysis in ocean engineering applications.</p>
         </html>"),
-        Icon(graphics = {
-          Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {215, 215, 255}, fillPattern = FillPattern.Solid),
-          Text(extent = {{-90, 90}, {90, 50}}, lineColor = {0, 0, 0}, textString = "f(x)"),
-          Line(points = {{-80, -20}, {-60, 20}, {-40, -40}, {-20, 40}, {0, -20}, {20, 60}, {40, -60}, {60, 20}, {80, -40}}, color = {0, 0, 255}, smooth = Smooth.Bezier),
-          Text(extent = {{-90, -50}, {90, -90}}, lineColor = {0, 0, 0}, textString = "Functions")
-        }));
+        Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {215, 215, 255}, fillPattern = FillPattern.Solid), Text(extent = {{-90, 90}, {90, 50}}, lineColor = {0, 0, 0}, textString = "f(x)"), Line(points = {{-80, -20}, {-60, 20}, {-40, -40}, {-20, 40}, {0, -20}, {20, 60}, {40, -60}, {60, 20}, {80, -40}}, color = {0, 0, 255}, smooth = Smooth.Bezier), Text(extent = {{-90, -50}, {90, -90}}, lineColor = {0, 0, 0}, textString = "Functions")}));
     end Functions;
-  
+
     package Connectors
       /* Package defining library connectors for data exchange between components */
-  
+
       connector WaveOutConn "Output connector for wave data"
         Modelica.Blocks.Interfaces.RealOutput F_exc "Excitation force [N]";
       end WaveOutConn;
-  
+
       connector WaveInConn "Input connector for wave data"
         Modelica.Blocks.Interfaces.RealInput F_exc "Excitation force [N]";
       end WaveInConn;
-  
+
       connector DataCollector "Output connector for collecting simulation data"
         Modelica.Blocks.Interfaces.RealOutput F_rad "Radiation force [N]";
         Modelica.Blocks.Interfaces.RealOutput v_z "Vertical velocity [m/s]";
       end DataCollector;
     end Connectors;
-  
+
     model TestDevelopment "Model to test all wave components and WEC rigid body interactions"
       /* Demonstrates the use of different wave types and their connections to rigid body models */
       parameter String filePath = "F:/.../hydroCoeff.mat" "File path for hydrodynamic coefficients";
@@ -1469,7 +1360,6 @@ if time < Trmp then
       connect(Irr1.wconn.F_exc, Body2.wconn.F_exc) "Connection for Pierson-Moskowitz wave excitation";
       connect(Irr2.wconn.F_exc, Body3.wconn.F_exc) "Connection for Bretschneider wave excitation";
       connect(Irr3.wconn.F_exc, Body4.wconn.F_exc) "Connection for JONSWAP wave excitation";
-      
       annotation(
         experiment(StartTime = 0, StopTime = 200, Tolerance = 1e-06, Interval = 0.1),
         Documentation(info = "<html>
@@ -1477,7 +1367,6 @@ if time < Trmp then
           <p>It includes regular and irregular wave models connected to corresponding rigid body models for simulation.</p>
         </html>"));
     end TestDevelopment;
-  
     annotation(
       Documentation(info = "<html>
         <p>This package contains internal functions, connectors, and test models for the Ocean Engineering Toolbox.</p>
@@ -1488,10 +1377,7 @@ if time < Trmp then
           <li>TestDevelopment: Model for testing wave-structure interactions</li>
         </ul>
       </html>"),
-      Icon(graphics = {
-        Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {230, 230, 250}, fillPattern = FillPattern.Solid),
-        Text(extent = {{-90, 90}, {90, -90}}, textString = "Internal", fontName = "Arial")
-      }));
+      Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}, fillColor = {230, 230, 250}, fillPattern = FillPattern.Solid), Text(extent = {{-90, 90}, {90, -90}}, textString = "Internal", fontName = "Arial")}));
   end Internal;
 
   package Testing
@@ -1779,22 +1665,21 @@ if time < Trmp then
     end HydrostaticForce6DUPD;
   end Testing;
 
-  connector Connectors
+  connector Connectored
     Modelica.Blocks.Interfaces.RealInput u[3] "Linear velocity vector [m/s]" annotation(
-        Placement(transformation(origin = {-108, 50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-98, 50}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput a[3] "Angular velocity vector [rad/s]" annotation(
-        Placement(transformation(origin = {-108, -50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-102, -52}, extent = {{-20, -20}, {20, 20}})));
-      // Output ports
-      Modelica.Blocks.Interfaces.RealOutput y[3] "Translational drag force vector [N]" annotation(
-        Placement(transformation(origin = {108, 50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 50}, extent = {{-10, -10}, {10, 10}})));
-      Modelica.Blocks.Interfaces.RealOutput y1[3] "Rotational drag torque vector [N*m]" annotation(
-        Placement(transformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}})));
-  
-  end Connectors;
+      Placement(transformation(origin = {-108, 50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-98, 50}, extent = {{-20, -20}, {20, 20}})));
+    Modelica.Blocks.Interfaces.RealInput a[3] "Angular velocity vector [rad/s]" annotation(
+      Placement(transformation(origin = {-108, -50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-102, -52}, extent = {{-20, -20}, {20, 20}})));
+    // Output ports
+    Modelica.Blocks.Interfaces.RealOutput y[3] "Translational drag force vector [N]" annotation(
+      Placement(transformation(origin = {108, 50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 50}, extent = {{-10, -10}, {10, 10}})));
+    Modelica.Blocks.Interfaces.RealOutput y1[3] "Rotational drag torque vector [N*m]" annotation(
+      Placement(transformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}})));
+  end Connectored;
 
   model DragForce6D "6-Dimensional Drag Force and Torque Calculation"
-  extends Modelica.Blocks.Icons.Block;
-  extends Hydrodynamic.Connectors;
+    extends Modelica.Blocks.Icons.Block;
+    extends Hydrodynamic.Connectors;
     // Fluid and reference parameters
     parameter Real rho = 1.25 "Density of fluid [kg/m^3]";
     parameter Real A = 1 "Reference area [m^2]";
@@ -1856,43 +1741,46 @@ if time < Trmp then
         <p>The drag coefficients are combined into a diagonal matrix to allow for different coefficients in each dimension.</p>
       </html>"));
   end DragForce6D;
-  annotation(Icon(graphics={
-  Rectangle(
-    extent={{-100,100},{100,-100}},
-    fillColor={230,240,255},
-    fillPattern=FillPattern.Solid,
-    lineColor={0,0,255}
-  ),
+
+  package Connector
   
-  // Regular wave representation
-  Line(
-    points={{-90, 40}, {-75, 60}, {-60, 20}, {-45, 50}, {-30, 10}, {-15, 40}, {0, 20}, {15, 50}, {30, 10}, {45, 60}, {60, 20}, {75, 50}, {90, 40}},
-    color={0, 0, 200}, thickness=2, smooth=Smooth.Bezier
-  ),
   
-  // Irregular wave representation
-  Line(
-    points={{-90, -20}, {-75, 0}, {-60, -30}, {-45, -10}, {-30, -40}, {-15, -15}, {0, -35}, {15, -25}, {30, -45}, {45, -10}, {60, -30}, {75, -20}, {90, -40}},
-    color={0, 100, 255}, thickness=2, smooth=Smooth.Bezier
-  ),
+    // Sensor readings
+  connector absolutePosition_con
+    Modelica.Blocks.Interfaces.RealInput u_abs[3] "Linear displacement vector [m]" annotation(
+      Placement(transformation(origin = {-106, 50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-96, 50}, extent = {{-20, -20}, {20, 20}})));
+    Modelica.Blocks.Interfaces.RealInput theta_abs[3] "Angular displacement vector [rad]" annotation(
+      Placement(transformation(origin = {-108, -50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-102, -52}, extent = {{-20, -20}, {20, 20}})));
+  end absolutePosition_con;  
+    
+  connector absoluteVelocity_con
+    Modelica.Blocks.Interfaces.RealInput v_abs[3] "Absolute linear velocity vector [m/s]" annotation(
+      Placement(transformation(origin = {-108, 50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-98, 50}, extent = {{-20, -20}, {20, 20}})));
+    Modelica.Blocks.Interfaces.RealInput omega_abs[3] "Absolute angular velocity vector [rad/s]" annotation(
+      Placement(transformation(origin = {-108, -50}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-102, -52}, extent = {{-20, -20}, {20, 20}})));
+  end absoluteVelocity_con;  
+    
+     // Force and torque output
+  connector forceTorque_con
+    Modelica.Blocks.Interfaces.RealOutput F[3] "Translational drag force vector [N]" annotation(
+      Placement(transformation(origin = {108, 50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 50}, extent = {{-10, -10}, {10, 10}})));
+    Modelica.Blocks.Interfaces.RealOutput T[3] "Rotational drag torque vector [N*m]" annotation(
+      Placement(transformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}})));
+  end forceTorque_con;
   
-  // Circle to represent water body or hydrodynamic system
-  Ellipse(
-    extent={{-50, 50}, {50, -50}},
-    lineColor={0, 0, 255},
-    fillColor={0, 170, 255},
-    fillPattern=FillPattern.Solid
-  ),
-  
-  // Text for labeling
-  Text(
-    extent={{-100,-70},{100,-90}},
-    lineColor={0,0,255},
-    textString="Hydrodynamic Package",
-    fontSize=14
-  )
-}),
-Documentation(info = "<html>
+  end Connector;
+
+  model Sensors
+  equation
+
+  end Sensors;
+  annotation(
+    Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, fillColor = {230, 240, 255}, fillPattern = FillPattern.Solid, lineColor = {0, 0, 255}), // Regular wave representation
+    Line(points = {{-90, 40}, {-75, 60}, {-60, 20}, {-45, 50}, {-30, 10}, {-15, 40}, {0, 20}, {15, 50}, {30, 10}, {45, 60}, {60, 20}, {75, 50}, {90, 40}}, color = {0, 0, 200}, thickness = 2, smooth = Smooth.Bezier), // Irregular wave representation
+    Line(points = {{-90, -20}, {-75, 0}, {-60, -30}, {-45, -10}, {-30, -40}, {-15, -15}, {0, -35}, {15, -25}, {30, -45}, {45, -10}, {60, -30}, {75, -20}, {90, -40}}, color = {0, 100, 255}, thickness = 2, smooth = Smooth.Bezier), // Circle to represent water body or hydrodynamic system
+    Ellipse(extent = {{-50, 50}, {50, -50}}, lineColor = {0, 0, 255}, fillColor = {0, 170, 255}, fillPattern = FillPattern.Solid), // Text for labeling
+    Text(extent = {{-100, -70}, {100, -90}}, lineColor = {0, 0, 255}, textString = "Hydrodynamic Package", fontSize = 14)}),
+    Documentation(info = "<html>
     <p><strong>Hydrodynamic Package</strong></p>
     
     <p>This package contains models and components for simulating hydrodynamic systems, 
