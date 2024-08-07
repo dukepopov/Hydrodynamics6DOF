@@ -23,15 +23,15 @@ package Hydrodynamic
 // Connections between components
       connect(world.frame_b, prismatic.frame_a) annotation(
         Line(points = {{-44, -20}, {-32, -20}}, color = {95, 95, 95}));
-      connect(waveParameters1.T, forceAndTorque.torque) annotation(
-        Line(points = {{73, -13}, {73, -20}, {58, -20}, {58, -14}}, color = {0, 0, 127}, thickness = 0.5));
-      connect(waveParameters1.F, forceAndTorque.force) annotation(
-        Line(points = {{73, -23}, {66, -23}, {66, -26}, {58, -26}}, color = {0, 0, 127}, thickness = 0.5));
   connect(prismatic.frame_b, hydrodynamicBlock6D.frame_a) annotation(
         Line(points = {{-12, -20}, {2, -20}}, color = {95, 95, 95}));
   connect(hydrodynamicBlock6D.frame_b, forceAndTorque.frame_b) annotation(
         Line(points = {{22, -20}, {36, -20}}, color = {95, 95, 95}));
-      annotation(
+  connect(forceAndTorque.force, waveParameters1.F) annotation(
+        Line(points = {{58, -26}, {74, -26}, {74, -22}}, color = {0, 0, 127}, thickness = 0.5));
+  connect(forceAndTorque.torque, waveParameters1.T) annotation(
+        Line(points = {{58, -14}, {66, -14}, {66, -12}, {74, -12}}, color = {0, 0, 127}, thickness = 0.5));
+    annotation(
         Icon(graphics = {Rectangle(extent = {{-100, 100}, {100, -100}}, lineColor = {0, 0, 255}), Polygon(points = {{-60, 0}, {60, 80}, {60, -80}, {-60, 0}}, lineColor = {0, 0, 255}, fillColor = {0, 0, 255}, fillPattern = FillPattern.Solid), Line(points = {{-100, 40}, {-30, 0}, {40, 60}, {100, 20}}, color = {0, 0, 255}, thickness = 1.5, smooth = Smooth.Bezier), Ellipse(extent = {{-20, 20}, {20, -20}}, lineColor = {0, 0, 255}, fillColor = {255, 255, 255}, fillPattern = FillPattern.Solid), Line(points = {{0, 100}, {0, 20}}, color = {0, 0, 255}, thickness = 1.5)}),
         Documentation(info = "<html>
           <p><b>1D Single-Body Wave Energy Converter (WEC) Model</b></p>
@@ -91,6 +91,125 @@ package Hydrodynamic
   end Example;
 
   package Forces
+
+    model HydrostaticForce6D "6-Dimensional Hydrostatic Force and Torque Calculation"
+      extends Modelica.Blocks.Icons.Block;
+      extends Hydrodynamic.Connector.absolutePosition_con;
+      extends Hydrodynamic.Connector.forceTorque_con;
+      // Hydrostatic restoring coefficients
+      parameter Real G1 = 0 "Hydrostatic restoring coefficient for x-axis translation [N/m]";
+      parameter Real G2 = 0 "Hydrostatic restoring coefficient for y-axis translation [N/m]";
+      parameter Real G3 = 2800951.20000000 "Hydrostatic restoring coefficient for z-axis translation [N/m]";
+      parameter Real G4 = 0 "Hydrostatic restoring coefficient for x-axis rotation [N*m/rad]";
+      parameter Real G5 = 0 "Hydrostatic restoring coefficient for y-axis rotation [N*m/rad]";
+      parameter Real G6 = 0 "Hydrostatic restoring coefficient for z-axis rotation [N*m/rad]";
+      parameter Real G[6, 6] = diagonal({G1, G2, G3, G4, G5, G6}) "Combined hydrostatic restoring coefficient matrix";
+      // Enable/disable force
+      parameter Boolean enableHydrostaticForce = true "Switch to enable/disable hydrostatic force calculation";
+      // Internal variables
+      Real u_theta[6] "Combined displacement vector [m, rad]";
+      Real fhs[6] "Hydrostatic force/torque vector [N, N*m]";
+    equation
+    // Combine linear and angular displacements into a single vector
+      u_theta = cat(1, u_abs, theta_abs);
+    // Calculate the 6D hydrostatic force/torque vector
+      fhs = -G*u_theta;
+    // Use the switch to conditionally output the force and torque
+      if enableHydrostaticForce then
+        F = fhs;
+      else
+        F = zeros(6);
+      end if;
+      annotation(
+        Documentation(info = "<html>
+        <p>This block calculates the 6-dimensional hydrostatic force and torque for both translational and rotational motion in a fluid medium.</p>
+        <p>The hydrostatic force/torque is calculated using linear restoring coefficients, where the force is proportional to the displacement from the equilibrium position.</p>
+        <p>The block can be enabled or disabled using the <code>enableHydrostaticForce</code> parameter.</p>
+        <p>Inputs:</p>
+        <ul>
+          <li><code>u</code>: Linear displacement vector [m]</li>
+          <li><code>theta</code>: Angular displacement vector [rad]</li>
+        </ul>
+        <p>Outputs:</p>
+        <ul>
+          <li><code>y</code>: Translational hydrostatic force vector [N]</li>
+          <li><code>y1</code>: Rotational hydrostatic torque vector [N*m]</li>
+        </ul>
+        <p>Key Parameters:</p>
+        <ul>
+          <li><code>G1</code>, <code>G2</code>, <code>G3</code>: Translational hydrostatic restoring coefficients [N/m]</li>
+          <li><code>G4</code>, <code>G5</code>, <code>G6</code>: Rotational hydrostatic restoring coefficients [N*m/rad]</li>
+        </ul>
+        <p>The hydrostatic restoring coefficients are combined into a diagonal matrix to allow for different coefficients in each dimension.</p>
+        <p>Note: By default, only the z-axis translation (heave) has a non-zero restoring coefficient, which is typical for floating bodies.</p>
+      </html>"));
+    end HydrostaticForce6D;
+
+    model RadiationF "1D Radiation Force Calculation for Hydrodynamic Systems"
+      extends Modelica.Blocks.Icons.Block;
+      extends Hydrodynamic.Connector.absolutePosition_con;
+      extends Hydrodynamic.Connector.absoluteVelocity_con;
+      extends Hydrodynamic.Connector.forceTorque_con;
+      // State-space model parameters for 1D radiation force
+      parameter Real A[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 1D model";
+      parameter Real B[2] = {683236.706073938, -585411.342188539} "Input vector for 1D model";
+      parameter Real C[2] = {1, 0} "Output vector for 1D model";
+      parameter Real D = 0 "Feed-through scalar for 1D model";
+      // Control parameter
+      parameter Boolean enableRadiationForce = true "Switch to enable/disable 1D radiation force calculation";
+      // State variables
+      Real x[2] "State vector for 1D radiation force model";
+      Real F_rad "Calculated 1D radiation force [N]";
+    initial equation
+      x = {0, 0} "Initialize state vector to zero";
+    equation
+    // 1D Radiation force state-space model
+    // Note: Only the third element of the velocity vector (vertical motion) is used
+      der(x) = A*x + B*v_abs[3];
+      F_rad = C*x + D*v_abs[3];
+    // Output: 1D radiation force only in the third element (vertical direction), with enable/disable switch
+      if enableRadiationForce then
+        F = {0, 0, -F_rad,0,0,0};
+      else
+        F = {0,0,0, 0, 0, 0};
+      end if;
+      annotation(
+        Documentation(info = "<html>
+        <h4>1D Radiation Force Model for Hydrodynamic Systems</h4>
+        <p>This model calculates the radiation force for hydrodynamic systems using a state-space representation, 
+        considering only the vertical direction (1D model).</p>
+        
+        <p>Model Description:</p>
+        <p>The radiation force is computed solely for the vertical direction (third element of the vectors) 
+        based on the vertical velocity input. This simplification allows for efficient modeling of systems 
+        where the primary concern is the vertical motion, such as in wave energy converters or floating structures.</p>
+        
+        <p>Inputs:</p>
+        <ul>
+          <li><code>z[3]</code>: Position vector [m] (currently not used in calculations, included for future extensions)</li>
+          <li><code>v[3]</code>: Velocity vector [m/s] (only the third element, representing vertical velocity, is used)</li>
+        </ul>
+        
+        <p>Outputs:</p>
+        <ul>
+          <li><code>y[3]</code>: Radiation force vector [N] (force applied only in the vertical direction, third element)</li>
+        </ul>
+        
+        <p>Key Parameters:</p>
+        <ul>
+          <li><code>A</code>, <code>B</code>, <code>C</code>, <code>D</code>: State-space model matrices and vectors for the 1D system</li>
+          <li><code>enableRadiationForce</code>: Boolean switch to enable/disable the radiation force calculation</li>
+        </ul>
+        
+        <p>Notes:</p>
+        <ul>
+          <li>The state-space model parameters (A, B, C, D) should be adjusted based on the specific 1D hydrodynamic system being modeled.</li>
+          <li>This model assumes that the radiation force acts only in the vertical direction, simplifying the calculations for many marine applications.</li>
+          <li>The position input (z) is currently not used in the calculations but is included for potential future enhancements or compatibility with other models.</li>
+        </ul>
+      </html>"),
+        Icon(graphics = {Text(extent = {{-100, 100}, {100, -100}}, textString = "1D Rad F", fontName = "Arial")}));
+    end RadiationF;
     model DragForce6D "6-Dimensional Drag Force and Torque Calculation"
       extends Modelica.Blocks.Icons.Block;
       extends Hydrodynamic.Connector.absoluteVelocity_con;
@@ -244,200 +363,144 @@ package Hydrodynamic
       </html>"));
     end PTO6D;
 
-    model HydrostaticForce6D "6-Dimensional Hydrostatic Force and Torque Calculation"
-      extends Modelica.Blocks.Icons.Block;
-      extends Hydrodynamic.Connector.absolutePosition_con;
-      extends Hydrodynamic.Connector.forceTorque_con;
-      // Hydrostatic restoring coefficients
-      parameter Real G1 = 0 "Hydrostatic restoring coefficient for x-axis translation [N/m]";
-      parameter Real G2 = 0 "Hydrostatic restoring coefficient for y-axis translation [N/m]";
-      parameter Real G3 = 2800951.20000000 "Hydrostatic restoring coefficient for z-axis translation [N/m]";
-      parameter Real G4 = 0 "Hydrostatic restoring coefficient for x-axis rotation [N*m/rad]";
-      parameter Real G5 = 0 "Hydrostatic restoring coefficient for y-axis rotation [N*m/rad]";
-      parameter Real G6 = 0 "Hydrostatic restoring coefficient for z-axis rotation [N*m/rad]";
-      parameter Real G[6, 6] = diagonal({G1, G2, G3, G4, G5, G6}) "Combined hydrostatic restoring coefficient matrix";
-      // Enable/disable force
-      parameter Boolean enableHydrostaticForce = true "Switch to enable/disable hydrostatic force calculation";
-      // Internal variables
-      Real u_theta[6] "Combined displacement vector [m, rad]";
-      Real fhs[6] "Hydrostatic force/torque vector [N, N*m]";
-    equation
-// Combine linear and angular displacements into a single vector
-      u_theta = cat(1, u_abs, theta_abs);
-// Calculate the 6D hydrostatic force/torque vector
-      fhs = -G*u_theta;
-// Use the switch to conditionally output the force and torque
-      if enableHydrostaticForce then
-        F = fhs;
-      else
-        F = zeros(6);
-      end if;
-      annotation(
-        Documentation(info = "<html>
-        <p>This block calculates the 6-dimensional hydrostatic force and torque for both translational and rotational motion in a fluid medium.</p>
-        <p>The hydrostatic force/torque is calculated using linear restoring coefficients, where the force is proportional to the displacement from the equilibrium position.</p>
-        <p>The block can be enabled or disabled using the <code>enableHydrostaticForce</code> parameter.</p>
-        <p>Inputs:</p>
-        <ul>
-          <li><code>u</code>: Linear displacement vector [m]</li>
-          <li><code>theta</code>: Angular displacement vector [rad]</li>
-        </ul>
-        <p>Outputs:</p>
-        <ul>
-          <li><code>y</code>: Translational hydrostatic force vector [N]</li>
-          <li><code>y1</code>: Rotational hydrostatic torque vector [N*m]</li>
-        </ul>
-        <p>Key Parameters:</p>
-        <ul>
-          <li><code>G1</code>, <code>G2</code>, <code>G3</code>: Translational hydrostatic restoring coefficients [N/m]</li>
-          <li><code>G4</code>, <code>G5</code>, <code>G6</code>: Rotational hydrostatic restoring coefficients [N*m/rad]</li>
-        </ul>
-        <p>The hydrostatic restoring coefficients are combined into a diagonal matrix to allow for different coefficients in each dimension.</p>
-        <p>Note: By default, only the z-axis translation (heave) has a non-zero restoring coefficient, which is typical for floating bodies.</p>
-      </html>"));
-    end HydrostaticForce6D;
-
-    model RadiationF "1D Radiation Force Calculation for Hydrodynamic Systems"
-      extends Modelica.Blocks.Icons.Block;
-      extends Hydrodynamic.Connector.absolutePosition_con;
-      extends Hydrodynamic.Connector.absoluteVelocity_con;
-      extends Hydrodynamic.Connector.forceTorque_con;
-      // State-space model parameters for 1D radiation force
-      parameter Real A[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 1D model";
-      parameter Real B[2] = {683236.706073938, -585411.342188539} "Input vector for 1D model";
-      parameter Real C[2] = {1, 0} "Output vector for 1D model";
-      parameter Real D = 0 "Feed-through scalar for 1D model";
-      // Control parameter
-      parameter Boolean enableRadiationForce = true "Switch to enable/disable 1D radiation force calculation";
-      // State variables
-      Real x[2] "State vector for 1D radiation force model";
-      Real F_rad "Calculated 1D radiation force [N]";
-    initial equation
-      x = {0, 0} "Initialize state vector to zero";
-    equation
-    // 1D Radiation force state-space model
-    // Note: Only the third element of the velocity vector (vertical motion) is used
-      der(x) = A*x + B*v_abs[3];
-      F_rad = C*x + D*v_abs[3];
-    // Output: 1D radiation force only in the third element (vertical direction), with enable/disable switch
-      if enableRadiationForce then
-        F = {0, 0, -F_rad,0,0,0};
-      else
-        F = {0,0,0, 0, 0, 0};
-      end if;
-      annotation(
-        Documentation(info = "<html>
-        <h4>1D Radiation Force Model for Hydrodynamic Systems</h4>
-        <p>This model calculates the radiation force for hydrodynamic systems using a state-space representation, 
-        considering only the vertical direction (1D model).</p>
-        
-        <p>Model Description:</p>
-        <p>The radiation force is computed solely for the vertical direction (third element of the vectors) 
-        based on the vertical velocity input. This simplification allows for efficient modeling of systems 
-        where the primary concern is the vertical motion, such as in wave energy converters or floating structures.</p>
-        
-        <p>Inputs:</p>
-        <ul>
-          <li><code>z[3]</code>: Position vector [m] (currently not used in calculations, included for future extensions)</li>
-          <li><code>v[3]</code>: Velocity vector [m/s] (only the third element, representing vertical velocity, is used)</li>
-        </ul>
-        
-        <p>Outputs:</p>
-        <ul>
-          <li><code>y[3]</code>: Radiation force vector [N] (force applied only in the vertical direction, third element)</li>
-        </ul>
-        
-        <p>Key Parameters:</p>
-        <ul>
-          <li><code>A</code>, <code>B</code>, <code>C</code>, <code>D</code>: State-space model matrices and vectors for the 1D system</li>
-          <li><code>enableRadiationForce</code>: Boolean switch to enable/disable the radiation force calculation</li>
-        </ul>
-        
-        <p>Notes:</p>
-        <ul>
-          <li>The state-space model parameters (A, B, C, D) should be adjusted based on the specific 1D hydrodynamic system being modeled.</li>
-          <li>This model assumes that the radiation force acts only in the vertical direction, simplifying the calculations for many marine applications.</li>
-          <li>The position input (z) is currently not used in the calculations but is included for potential future enhancements or compatibility with other models.</li>
-        </ul>
-      </html>"),
-        Icon(graphics = {Text(extent = {{-100, 100}, {100, -100}}, textString = "1D Rad F", fontName = "Arial")}));
-    end RadiationF;
-
     model HydrodynamicBlock6D "6-Dimensional Hydrodynamic Forces and Moments Calculation"
+      extends Modelica.Units.SI;
       extends Modelica.Blocks.Icons.Block;
       extends Hydrodynamic.Connector.inputOutput_con;
       
       
-      // Parameters for DragForce6D
-      parameter Real rho(unit="kg/m^3") = 1000 "Density of fluid" annotation(
-        Dialog(group = "Drag Parameters"));
-      parameter Real A1(unit="m^2") = 1 "Reference area" annotation(
-        Dialog(group = "Drag Parameters"));
-      parameter Real Cdx = 100 "Translational drag coefficient for x-axis" annotation(
-        Dialog(group = "Drag Parameters"));
-      parameter Real Cdy = 0.01 "Translational drag coefficient for y-axis" annotation(
-        Dialog(group = "Drag Parameters"));
-      parameter Real Cdz = 100 "Translational drag coefficient for z-axis" annotation(
-        Dialog(group = "Drag Parameters"));
-      parameter Real Crx = 100 "Rotational drag coefficient for x-axis" annotation(
-        Dialog(group = "Drag Parameters"));
-      parameter Real Cry = 0.01 "Rotational drag coefficient for y-axis" annotation(
-        Dialog(group = "Drag Parameters"));
-      parameter Real Crz = 100 "Rotational drag coefficient for z-axis" annotation(
-        Dialog(group = "Drag Parameters"));
-      parameter Boolean enableDragForce = false "Switch to enable/disable drag force calculation" annotation(
-        Dialog(group = "Drag Parameters"));
+      // Parameters for BodyShape
+      parameter Position r[3] = {0, 0, 0} "Position vector" annotation(
+        Dialog(group = "Body"));
+      parameter Position r_CM[3] = {0, 0, 0} "Center of mass position vector" annotation(
+        Dialog(group = "Body"));
+      parameter Mass m = 1958671 "Mass of the body" annotation(
+        Dialog(group = "Body"));
+      parameter Position length = 0.1 "Length of the body" annotation(
+        Dialog(group = "Body"));
+      parameter Position width = 0.1 "Width of the body" annotation(
+        Dialog(group = "Body"));
+      parameter Position height = 0.1 "Height of the body" annotation(
+        Dialog(group = "Body"));
+      parameter Inertia I_11 = 0.001 "Element (1,1) of inertia tensor" annotation(
+        Dialog(group = "Body"));
+      parameter Inertia I_22 = 0.001 "Element (2,2) of inertia tensor" annotation(
+        Dialog(group = "Body"));
+      parameter Inertia I_33 = 0.001 "Element (3,3) of inertia tensor" annotation(
+        Dialog(group = "Body"));
+      parameter Inertia I_21 = 0 "Element (2,1) of inertia tensor" annotation(
+        Dialog(group = "Body"));
+      parameter Inertia I_31 = 0 "Element (3,1) of inertia tensor" annotation(
+        Dialog(group = "Body"));
+      parameter Inertia I_32 = 0 "Element (3,2) of inertia tensor" annotation(
+        Dialog(group = "Body"));
+      Modelica.Mechanics.MultiBody.Parts.BodyShape bodyShape(
+        r=r, 
+        r_CM=r_CM, 
+        m=m, 
+        length=length, 
+        width=width, 
+        height=height, 
+        I_11 = I_11, 
+        I_22 = I_22, 
+        I_33 = I_33, 
+        I_21 = I_21, 
+        I_31 = I_31, 
+        I_32 = I_32
+      ) annotation(
+        Placement(transformation(origin = {10, -84}, extent = {{-10, -10}, {10, 10}})));
       
       
-      // Drag force components
-      DragForce6D dragForce6D(
-        rho=rho,
-        A=A1,
-        Cdx=Cdx,
-        Cdy=Cdy,
-        Cdz=Cdz,
-        Crx=Crx,
-        Cry=Cry,
-        Crz=Crz,
-        enableDragForce=enableDragForce
-      ) "Drag force calculation" annotation(
-        Placement(transformation(origin = {16, 34}, extent = {{-10, -10}, {10, 10}})));
       
+      
+      // Parameters for HydrostaticForce6D
+      parameter Boolean enableHydrostaticForce = true "Switch to enable/disable hydrostatic force calculation" annotation(
+        Dialog(group = "Hydrostatic Stiffness Parameters"));
+      
+      parameter TranslationalSpringConstant G1 = 0 "Hydrostatic restoring coefficient for x-axis translation" annotation(
+        Dialog(group = "Hydrostatic Stiffness Parameters"));
+      parameter TranslationalSpringConstant G2 = 0 "Hydrostatic restoring coefficient for y-axis translation" annotation(
+        Dialog(group = "Hydrostatic Stiffness Parameters"));
+      parameter TranslationalSpringConstant G3 = 2800951.20000000 "Hydrostatic restoring coefficient for z-axis translation" annotation(
+        Dialog(group = "Hydrostatic Stiffness Parameters"));
+      parameter RotationalSpringConstant G4 = 0 "Hydrostatic restoring coefficient for x-axis rotation" annotation(
+        Dialog(group = "Hydrostatic Stiffness Parameters"));
+      parameter RotationalSpringConstant G5 = 0 "Hydrostatic restoring coefficient for y-axis rotation" annotation(
+        Dialog(group = "Hydrostatic Stiffness Parameters"));
+      parameter RotationalSpringConstant G6 = 0 "Hydrostatic restoring coefficient for z-axis rotation" annotation(
+        Dialog(group = "Hydrostatic Stiffness Parameters"));
+     
+      // Hydrostatic Force components
+      HydrostaticForce6D hydrostaticForce6D(
+        enableHydrostaticForce=enableHydrostaticForce,
+        G1=G1,
+        G2=G2,
+        G3=G3,
+        G4=G4,
+        G5=G5,
+        G6=G6
+      ) "Hydrostatic force calculation" annotation(
+        Placement(transformation(origin = {16, -20}, extent = {{-10, -10}, {10, 10}})));
+     
+     
+     
+     
+      // Parameters for RadiationF
+      parameter Boolean enableRadiationForce = true "Switch to enable/disable 1D radiation force calculation" annotation(
+        Dialog(group = "Radiation Force Parameters"));
+    
+      parameter Real A[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 1D model" annotation(
+        Dialog(group = "Radiation Force Parameters"));
+      parameter Real B[2] = {683236.706073938, -585411.342188539} "Input vector for 1D model" annotation(
+        Dialog(group = "Radiation Force Parameters"));
+      parameter Real C[2] = {1, 0} "Output vector for 1D model" annotation(
+        Dialog(group = "Radiation Force Parameters"));
+      parameter Real D = 0 "Feed-through scalar for 1D model" annotation(
+        Dialog(group = "Radiation Force Parameters"));
+      
+      // HydrodynamicBlock6D components and connections
+      RadiationF radiationF(
+        A=A,
+        B=B,
+        C=C,
+        D=D,
+        enableRadiationForce=enableRadiationForce
+      ) "1D Radiation Force Calculation" annotation(
+        Placement(transformation(origin = {18, 66}, extent = {{-10, -10}, {10, 10}})));
       
       
       
       
       // Parameters for PTO6D
-      parameter String fileName = "C:/Users/Duke/SysModel2024/DragSystem/hydroCoeff_shit.mat" "Path to the hydroCoeff.mat file" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Modelica.Units.SI.AngularFrequency omega_peak = 0.9423 "Peak spectral frequency" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kpx = 0.0 "Proportional gain for x-axis translation [N/(m/s)]" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kpy = 0.0 "Proportional gain for y-axis translation [N/(m/s)]" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kprx = 0.0 "Proportional gain for x-axis rotation [N*m/(rad/s)]" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kpry = 0.0 "Proportional gain for y-axis rotation [N*m/(rad/s)]" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kprz = 0.0 "Proportional gain for z-axis rotation [N*m/(rad/s)]" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kix = 0.0 "Integral gain for x-axis translation [N/m]" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kiy = 0.0 "Integral gain for y-axis translation [N/m]" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kirx = 0.0 "Integral gain for x-axis rotation [N*m/rad]" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kiry = 0.0 "Integral gain for y-axis rotation [N*m/rad]" annotation(
-        Dialog(group = "PTO Parameters"));
-      parameter Real Kirz = 0.0 "Integral gain for z-axis rotation [N*m/rad]" annotation(
-        Dialog(group = "PTO Parameters"));
       parameter Boolean enablePTOForce = false "Switch to enable/disable PTO force calculation" annotation(
         Dialog(group = "PTO Parameters"));
       parameter String controllerSelect = "reactive" "Controller type select" annotation(
         Dialog(group = "PTO Parameters"));
-      
-      
+      parameter String fileName = "C:/Users/Duke/SysModel2024/DragSystem/hydroCoeff_shit.mat" "Path to the hydroCoeff.mat file" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter AngularFrequency omega_peak = 0.9423 "Peak spectral frequency" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter Real Kpx(unit="N/(m/s)") = 0.0 "Proportional gain for x-axis translation" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter Real Kpy(unit="N/(m/s)") = 0.0 "Proportional gain for y-axis translation" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter Real Kprx(unit="N·m/(rad/s)") = 0.0 "Proportional gain for x-axis rotation" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter Real Kpry(unit="N·m/(rad/s)") = 0.0 "Proportional gain for y-axis rotation" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter Real Kprz(unit="N·m/(rad/s)") = 0.0 "Proportional gain for z-axis rotation" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter TranslationalSpringConstant Kix = 0.0 "Integral gain for x-axis translation" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter TranslationalSpringConstant Kiy = 0.0 "Integral gain for y-axis translation" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter RotationalSpringConstant Kirx = 0.0 "Integral gain for x-axis rotation" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter RotationalSpringConstant Kiry = 0.0 "Integral gain for y-axis rotation" annotation(
+        Dialog(group = "PTO Parameters"));
+      parameter RotationalSpringConstant Kirz = 0.0 "Integral gain for z-axis rotation" annotation(
+        Dialog(group = "PTO Parameters"));
+        
       // PTO components
       PTO6D pto6d(
         fileName=fileName,
@@ -458,78 +521,44 @@ package Hydrodynamic
         Placement(transformation(origin = {16, -46}, extent = {{-10, -10}, {10, 10}})));
       
       
-      // Parameters for HydrostaticForce6D
-      parameter Real G1 = 0 "Hydrostatic restoring coefficient for x-axis translation [N/m]" annotation(
-        Dialog(group = "Hydrostatic Stiffness Parameters"));
-      parameter Real G2 = 0 "Hydrostatic restoring coefficient for y-axis translation [N/m]" annotation(
-        Dialog(group = "Hydrostatic Stiffness Parameters"));
-      parameter Real G3 = 2800951.20000000 "Hydrostatic restoring coefficient for z-axis translation [N/m]" annotation(
-        Dialog(group = "Hydrostatic Stiffness Parameters"));
-      parameter Real G4 = 0 "Hydrostatic restoring coefficient for x-axis rotation [N*m/rad]" annotation(
-        Dialog(group = "Hydrostatic Stiffness Parameters"));
-      parameter Real G5 = 0 "Hydrostatic restoring coefficient for y-axis rotation [N*m/rad]" annotation(
-        Dialog(group = "Hydrostatic Stiffness Parameters"));
-      parameter Real G6 = 0 "Hydrostatic restoring coefficient for z-axis rotation [N*m/rad]" annotation(
-        Dialog(group = "Hydrostatic Stiffness Parameters"));
-      parameter Boolean enableHydrostaticForce = true "Switch to enable/disable hydrostatic force calculation" annotation(
-        Dialog(group = "Hydrostatic Stiffness Parameters"));
       
-     
-      // Hydrostatic Force components
-      HydrostaticForce6D hydrostaticForce6D(
-        G1=G1,
-        G2=G2,
-        G3=G3,
-        G4=G4,
-        G5=G5,
-        G6=G6,
-        enableHydrostaticForce=enableHydrostaticForce
-      ) "Hydrostatic force calculation" annotation(
-        Placement(transformation(origin = {16, -20}, extent = {{-10, -10}, {10, 10}})));
-     
-     
-     
-     
-      // Parameters for RadiationF
-      parameter Real A[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 1D model" annotation(
-        Dialog(group = "Radiation Force Parameters"));
-      parameter Real B[2] = {683236.706073938, -585411.342188539} "Input vector for 1D model" annotation(
-        Dialog(group = "Radiation Force Parameters"));
-      parameter Real C[2] = {1, 0} "Output vector for 1D model" annotation(
-        Dialog(group = "Radiation Force Parameters"));
-      parameter Real D = 0 "Feed-through scalar for 1D model" annotation(
-        Dialog(group = "Radiation Force Parameters"));
-      parameter Boolean enableRadiationForce = true "Switch to enable/disable 1D radiation force calculation" annotation(
-        Dialog(group = "Radiation Force Parameters"));
-    
-      // HydrodynamicBlock6D components and connections
-      RadiationF radiationF(
-        A=A,
-        B=B,
-        C=C,
-        D=D,
-        enableRadiationForce=enableRadiationForce
-      ) "1D Radiation Force Calculation" annotation(
-        Placement(transformation(origin = {18, 66}, extent = {{-10, -10}, {10, 10}})));
+      
+      // Parameters for DragForce6D
+      parameter Boolean enableDragForce = false "Switch to enable/disable drag force calculation" annotation(
+        Dialog(group = "Drag Parameters"));
+      
+      parameter MassConcentration rho = 1000 "Density of fluid" annotation(
+        Dialog(group = "Drag Parameters"));
+      parameter Area A1 = 1 "Reference area" annotation(
+        Dialog(group = "Drag Parameters"));
+      parameter Real Cdx = 100 "Translational drag coefficient for x-axis" annotation(
+        Dialog(group = "Drag Parameters"));
+      parameter Real Cdy = 0.01 "Translational drag coefficient for y-axis" annotation(
+        Dialog(group = "Drag Parameters"));
+      parameter Real Cdz = 100 "Translational drag coefficient for z-axis" annotation(
+        Dialog(group = "Drag Parameters"));
+      parameter Real Crx = 100 "Rotational drag coefficient for x-axis" annotation(
+        Dialog(group = "Drag Parameters"));
+      parameter Real Cry = 0.01 "Rotational drag coefficient for y-axis" annotation(
+        Dialog(group = "Drag Parameters"));
+      parameter Real Crz = 100 "Rotational drag coefficient for z-axis" annotation(
+        Dialog(group = "Drag Parameters"));
      
       
-      // Parameters for BodyShape
-      parameter Real r[3] = {0, 0, 0} "Position vector";
-      parameter Real r_CM[3] = {0, 0, 0} "Center of mass position vector";
-      parameter Real m = 1958671 "Mass of the body";
-      parameter Real length = 0.1 "Length of the body";
-      parameter Real width = 0.1 "Width of the body";
-      parameter Real height = 0.1 "Height of the body";
+      // Drag force components
+      DragForce6D dragForce6D(
+        rho=rho,
+        A=A1,
+        Cdx=Cdx,
+        Cdy=Cdy,
+        Cdz=Cdz,
+        Crx=Crx,
+        Cry=Cry,
+        Crz=Crz,
+        enableDragForce=enableDragForce
+      ) "Drag force calculation" annotation(
+        Placement(transformation(origin = {16, 34}, extent = {{-10, -10}, {10, 10}})));
       
-      Modelica.Mechanics.MultiBody.Parts.BodyShape bodyShape(
-        r=r, 
-        r_CM=r_CM, 
-        m=m, 
-        length=length, 
-        width=width, 
-        height=height
-      ) annotation(
-        Placement(transformation(origin = {10, -84}, extent = {{-10, -10}, {10, 10}})));
       
       
       
@@ -540,7 +569,7 @@ package Hydrodynamic
       Modelica.Mechanics.MultiBody.Forces.WorldForceAndTorque forceAndTorque annotation(
         Placement(transformation(origin = {82, 0}, extent = {{-10, 10}, {10, -10}}, rotation = -0)));
       
-      Modelica.Mechanics.MultiBody.Sensors.AbsoluteSensor absoluteSensor(get_r = true, get_v = true, get_a = true, get_z = false, get_angles = true, get_w = true) annotation(
+      Modelica.Mechanics.MultiBody.Sensors.AbsoluteSensor absoluteSensor(get_r = true,            get_v = true, get_a = true, get_z = false, get_angles = true, get_w = true) annotation(
         Placement(transformation(origin = {-61, 1}, extent = {{-11, -11}, {11, 11}})));
       
     equation
@@ -564,29 +593,29 @@ package Hydrodynamic
         Line(points = {{0, -84}, {-102, -84}, {-102, 0}}, color = {95, 95, 95}));
       connect(bodyShape.frame_b, frame_b) annotation(
         Line(points = {{20, -84}, {102, -84}, {102, 0}}, color = {95, 95, 95}));
-  connect(absoluteSensor.frame_a, bodyShape.frame_b) annotation(
-        Line(points = {{-72, 1}, {-88, 1}, {-88, -70}, {20, -70}, {20, -84}}, color = {95, 95, 95}));
-  connect(forceAndTorque.frame_b, bodyShape.frame_b) annotation(
-        Line(points = {{92, 0}, {92, -84}, {20, -84}}, color = {95, 95, 95}));
-  connect(forceToqueSum.F, forceAndTorque.force) annotation(
-        Line(points = {{61, 5}, {64, 5}, {64, 6}, {70, 6}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(forceToqueSum.T, forceAndTorque.torque) annotation(
-        Line(points = {{61, -5}, {70, -5}, {70, -6}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(absoluteSensor.angles, pto6d.theta_abs) annotation(
-        Line(points = {{-58, -12}, {-58, -44}, {4, -44}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(absoluteSensor.v, pto6d.v_abs) annotation(
-        Line(points = {{-68, -12}, {-68, -48}, {4, -48}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(absoluteSensor.r, hydrostaticForce6D.u_abs) annotation(
-        Line(points = {{-72, -12}, {-72, -4}, {4, -4}, {4, -12}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(absoluteSensor.angles, hydrostaticForce6D.theta_abs) annotation(
-        Line(points = {{-58, -12}, {-58, -18}, {4, -18}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(absoluteSensor.r, radiationF.u_abs) annotation(
-        Line(points = {{-72, -12}, {-72, 74}, {6, 74}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(absoluteSensor.v, radiationF.v_abs) annotation(
-        Line(points = {{-68, -12}, {-68, 64}, {6, 64}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(pto6d.F, forceToqueSum.Fpto) annotation(
-        Line(points = {{28, -46}, {38, -46}, {38, -8}}, color = {0, 0, 127}, thickness = 0.5));
-  connect(hydrostaticForce6D.F, forceToqueSum.Fhs) annotation(
+    connect(absoluteSensor.frame_a, bodyShape.frame_b) annotation(
+          Line(points = {{-72, 1}, {-88, 1}, {-88, -70}, {20, -70}, {20, -84}}, color = {95, 95, 95}));
+    connect(forceAndTorque.frame_b, bodyShape.frame_b) annotation(
+          Line(points = {{92, 0}, {92, -84}, {20, -84}}, color = {95, 95, 95}));
+    connect(forceToqueSum.F, forceAndTorque.force) annotation(
+          Line(points = {{61, 5}, {64, 5}, {64, 6}, {70, 6}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(forceToqueSum.T, forceAndTorque.torque) annotation(
+          Line(points = {{61, -5}, {70, -5}, {70, -6}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(absoluteSensor.angles, pto6d.theta_abs) annotation(
+          Line(points = {{-58, -12}, {-58, -44}, {4, -44}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(absoluteSensor.v, pto6d.v_abs) annotation(
+          Line(points = {{-68, -12}, {-68, -48}, {4, -48}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(absoluteSensor.r, hydrostaticForce6D.u_abs) annotation(
+          Line(points = {{-72, -12}, {-72, -4}, {4, -4}, {4, -12}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(absoluteSensor.angles, hydrostaticForce6D.theta_abs) annotation(
+          Line(points = {{-58, -12}, {-58, -18}, {4, -18}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(absoluteSensor.r, radiationF.u_abs) annotation(
+          Line(points = {{-72, -12}, {-72, 74}, {6, 74}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(absoluteSensor.v, radiationF.v_abs) annotation(
+          Line(points = {{-68, -12}, {-68, 64}, {6, 64}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(pto6d.F, forceToqueSum.Fpto) annotation(
+          Line(points = {{28, -46}, {38, -46}, {38, -8}}, color = {0, 0, 127}, thickness = 0.5));
+    connect(hydrostaticForce6D.F, forceToqueSum.Fhs) annotation(
         Line(points = {{28, -20}, {32, -20}, {32, 2}, {38, 2}}, color = {0, 0, 127}, thickness = 0.5));
       annotation(
         Diagram,
@@ -612,139 +641,6 @@ package Hydrodynamic
         <p>Note: Some force components (e.g., drag and PTO) are disabled by default and can be enabled by modifying the respective parameters.</p>
       </html>"));
     end HydrodynamicBlock6D;
-
-    model BodyHD6D "6-Dimensional Hydrodynamic Body Model"
-      extends Modelica.Blocks.Icons.Block;
-    
-      // MultiBody connectors
-      Modelica.Mechanics.MultiBody.Interfaces.Frame_a frame_a "Input frame" annotation(
-        Placement(transformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}})));
-      Modelica.Mechanics.MultiBody.Interfaces.Frame_b frame_b "Output frame" annotation(
-        Placement(transformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}})));
-    
-      // Body components
-      Modelica.Mechanics.MultiBody.Parts.BodyShape bodyShape(height = 0.1, length = 0.1, m = 1958671, width = 0.1, r_CM = {0, 0, 0}, r = {0, 0, 0}) "Main body with mass and inertia" annotation(
-        Placement(transformation(origin = {-50, 0}, extent = {{-10, -10}, {10, 10}})));
-      Modelica.Mechanics.MultiBody.Parts.FixedTranslation fixedTranslation(r = {0, 0, 0}, animation = false) "Fixed translation to adjust body position" annotation(
-        Placement(transformation(origin = {-20, 0}, extent = {{-10, -10}, {10, 10}})));
-    
-      // Parameters for DragForce6D (now part of BodyHD6D)
-      parameter Real rho(unit="kg/m^3") = 1000 "Density of fluid";
-      parameter Real A(unit="m^2") = 1 "Reference area";
-      parameter Real Cdx = 100 "Translational drag coefficient for x-axis";
-      parameter Real Cdy = 0.01 "Translational drag coefficient for y-axis";
-      parameter Real Cdz = 100 "Translational drag coefficient for z-axis";
-      parameter Real Crx = 100 "Rotational drag coefficient for x-axis";
-      parameter Real Cry = 0.01 "Rotational drag coefficient for y-axis";
-      parameter Real Crz = 100 "Rotational drag coefficient for z-axis";
-      parameter Boolean enableDragForce = false "Switch to enable/disable drag force calculation";
-    
-      // Hydrodynamic forces component
-      HydrodynamicBlock6D hydrodynamicBlock6D(
-        rho=rho,
-        A=A,
-        Cdx=Cdx,
-        Cdy=Cdy,
-        Cdz=Cdz,
-        Crx=Crx,
-        Cry=Cry,
-        Crz=Crz,
-        enableDragForce=enableDragForce
-      ) "Calculation of hydrodynamic forces and moments" annotation(
-        Placement(transformation(origin = {24, 34}, extent = {{-10, -10}, {10, 10}})));
-    equation
-// Connect input frame to body
-      connect(frame_a, bodyShape.frame_a) annotation(
-        Line(points = {{-102, 0}, {-60, 0}}));
-// Connect body to fixed translation
-      connect(bodyShape.frame_b, fixedTranslation.frame_a) annotation(
-        Line(points = {{-40, 0}, {-30, 0}}, color = {95, 95, 95}));
-// Connect fixed translation to output frame
-      connect(fixedTranslation.frame_b, frame_b) annotation(
-        Line(points = {{-10, 0}, {102, 0}}, color = {95, 95, 95}));
-// Connect hydrodynamic block to body
-      connect(hydrodynamicBlock6D.frame_a, fixedTranslation.frame_b) annotation(
-        Line(points = {{14, 34}, {-10, 34}, {-10, 0}}, color = {95, 95, 95}));
-      connect(hydrodynamicBlock6D.frame_b, fixedTranslation.frame_b) annotation(
-        Line(points = {{34, 34}, {46, 34}, {46, 0}, {-10, 0}}, color = {95, 95, 95}));
-      annotation(
-        Documentation(info = "<html>
-        <p>This model represents a 6-dimensional hydrodynamic body, incorporating both rigid body dynamics and hydrodynamic forces.</p>
-        <p>The model consists of:</p>
-        <ul>
-          <li>A main body with specified mass and inertia</li>
-          <li>A fixed translation component to adjust the body's position</li>
-          <li>A hydrodynamic block that calculates and applies various hydrodynamic forces and moments</li>
-        </ul>
-        <p>Inputs:</p>
-        <ul>
-          <li><code>frame_a</code>: Input frame for external connections</li>
-        </ul>
-        <p>Outputs:</p>
-        <ul>
-          <li><code>frame_b</code>: Output frame for external connections</li>
-        </ul>
-        <p>The hydrodynamic forces are applied to the body through the HydrodynamicBlock6D component, 
-        which calculates drag, power take-off, hydrostatic, and radiation forces based on the body's motion.</p>
-        <p>Note: The body's shape parameters (height, length, width) and mass can be adjusted as needed for specific applications.</p>
-      </html>"),
-        Icon(graphics = {Text(origin = {-2, -95}, extent = {{-58, 15}, {62, -5}}, textString = "Rigid Body 6D"), Rectangle(origin = {3, -10}, fillColor = {211, 215, 207}, fillPattern = FillPattern.Solid, extent = {{-95, 50}, {89, -50}}), Text(origin = {0, 54}, extent = {{-100, 16}, {100, -24}}, textString = "%name")}));
-    end BodyHD6D;
-
-    model ExcitationForce "1D Excitation Force Model for Hydrodynamic Systems"
-      extends Modelica.Blocks.Icons.Block;
-      // Output connector
-      Modelica.Blocks.Interfaces.RealOutput y[3] "Excitation force vector [N] (only vertical component non-zero)" annotation(
-        Placement(transformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, 0}, extent = {{-10, -10}, {10, 10}})));
-      // Import the CombiTimeTable for data input
-      import Modelica.Blocks.Sources.CombiTimeTable;
-      // Excitation force data input
-      CombiTimeTable excitationData(tableOnFile = true, fileName = "C:/Users/Duke/SysModel2024/DragSystem/ExcF9.csv", tableName = "excitation", columns = {2}, extrapolation = Modelica.Blocks.Types.Extrapolation.HoldLastPoint) "Time series data for vertical excitation force";
-    equation
-// Apply excitation force only in the vertical direction (third element)
-      y = {0, 0, excitationData.y[1]};
-      annotation(
-        Documentation(info = "<html>
-        <h4>1D Excitation Force Model for Hydrodynamic Systems</h4>
-        <p>This model represents the excitation force for hydrodynamic systems, 
-        considering only the vertical direction (1D model).</p>
-        
-        <p>Model Description:</p>
-        <p>The excitation force is applied solely in the vertical direction (third element of the output vector). 
-        The force magnitude is obtained from a time series data file, allowing for the representation of 
-        time-varying excitation forces such as those caused by waves in marine applications.</p>
-        
-        <p>Inputs:</p>
-        <ul>
-          <li>No direct inputs. The excitation force is read from an external CSV file.</li>
-        </ul>
-        
-        <p>Outputs:</p>
-        <ul>
-          <li><code>y[3]</code>: Excitation force vector [N] (force applied only in the vertical direction, third element)</li>
-        </ul>
-        
-        <p>Key Components:</p>
-        <ul>
-          <li><code>excitationData</code>: CombiTimeTable that reads the excitation force data from a CSV file</li>
-        </ul>
-        
-        <p>File Input:</p>
-        <ul>
-          <li>File path: C:/Users/Duke/SysModel2024/DragSystem/ExcF6.csv</li>
-          <li>Table name: 'excitation'</li>
-          <li>Only the second column of the CSV file is used (assumed to contain force values)</li>
-        </ul>
-        
-        <p>Notes:</p>
-        <ul>
-          <li>The model assumes that the excitation force acts only in the vertical direction, simplifying the calculations for many marine applications.</li>
-          <li>The excitation force data is held at its last value if the simulation time exceeds the data in the input file.</li>
-          <li>Ensure that the CSV file path is correct and the file is accessible for successful simulation.</li>
-        </ul>
-      </html>"),
-        Icon(graphics = {Text(extent = {{-100, 100}, {100, -100}}, textString = "1D Exc F", fontName = "Arial")}));
-    end ExcitationForce;
     annotation(
       Documentation(info = "<html>
       <h4>Forces Package for Hydrodynamic Systems</h4>
@@ -1895,7 +1791,206 @@ package Hydrodynamic
         y1 = zeros(3);
       end if;
     end HydrostaticForce6DUPD;
+    model BodyHD6D "6-Dimensional Hydrodynamic Body Model"
+    extends Modelica.Blocks.Icons.Block;
+  
+    // MultiBody connectors
+    Modelica.Mechanics.MultiBody.Interfaces.Frame_a frame_a "Input frame" annotation(
+      Placement(transformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}})));
+    Modelica.Mechanics.MultiBody.Interfaces.Frame_b frame_b "Output frame" annotation(
+      Placement(transformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}})));
+  
+    // Body components
+    Modelica.Mechanics.MultiBody.Parts.BodyShape bodyShape(height = 0.1, length = 0.1, m = 1958671, width = 0.1, r_CM = {0, 0, 0}, r = {0, 0, 0}) "Main body with mass and inertia" annotation(
+      Placement(transformation(origin = {-50, 0}, extent = {{-10, -10}, {10, 10}})));
+    Modelica.Mechanics.MultiBody.Parts.FixedTranslation fixedTranslation(r = {0, 0, 0}, animation = false) "Fixed translation to adjust body position" annotation(
+      Placement(transformation(origin = {-20, 0}, extent = {{-10, -10}, {10, 10}})));
+  
+    // Parameters for DragForce6D (now part of BodyHD6D)
+    parameter Real rho(unit="kg/m^3") = 1000 "Density of fluid";
+    parameter Real A(unit="m^2") = 1 "Reference area";
+    parameter Real Cdx = 100 "Translational drag coefficient for x-axis";
+    parameter Real Cdy = 0.01 "Translational drag coefficient for y-axis";
+    parameter Real Cdz = 100 "Translational drag coefficient for z-axis";
+    parameter Real Crx = 100 "Rotational drag coefficient for x-axis";
+    parameter Real Cry = 0.01 "Rotational drag coefficient for y-axis";
+    parameter Real Crz = 100 "Rotational drag coefficient for z-axis";
+    parameter Boolean enableDragForce = false "Switch to enable/disable drag force calculation";
+  
+    // Hydrodynamic forces component
+    HydrodynamicBlock6D hydrodynamicBlock6D(
+      rho=rho,
+      A=A,
+      Cdx=Cdx,
+      Cdy=Cdy,
+      Cdz=Cdz,
+      Crx=Crx,
+      Cry=Cry,
+      Crz=Crz,
+      enableDragForce=enableDragForce
+    ) "Calculation of hydrodynamic forces and moments" annotation(
+      Placement(transformation(origin = {24, 34}, extent = {{-10, -10}, {10, 10}})));
+  equation
+  // Connect input frame to body
+    connect(frame_a, bodyShape.frame_a) annotation(
+      Line(points = {{-102, 0}, {-60, 0}}));
+  // Connect body to fixed translation
+    connect(bodyShape.frame_b, fixedTranslation.frame_a) annotation(
+      Line(points = {{-40, 0}, {-30, 0}}, color = {95, 95, 95}));
+  // Connect fixed translation to output frame
+    connect(fixedTranslation.frame_b, frame_b) annotation(
+      Line(points = {{-10, 0}, {102, 0}}, color = {95, 95, 95}));
+  // Connect hydrodynamic block to body
+    connect(hydrodynamicBlock6D.frame_a, fixedTranslation.frame_b) annotation(
+      Line(points = {{14, 34}, {-10, 34}, {-10, 0}}, color = {95, 95, 95}));
+    connect(hydrodynamicBlock6D.frame_b, fixedTranslation.frame_b) annotation(
+      Line(points = {{34, 34}, {46, 34}, {46, 0}, {-10, 0}}, color = {95, 95, 95}));
+    annotation(
+      Documentation(info = "<html>
+      <p>This model represents a 6-dimensional hydrodynamic body, incorporating both rigid body dynamics and hydrodynamic forces.</p>
+      <p>The model consists of:</p>
+      <ul>
+        <li>A main body with specified mass and inertia</li>
+        <li>A fixed translation component to adjust the body's position</li>
+        <li>A hydrodynamic block that calculates and applies various hydrodynamic forces and moments</li>
+      </ul>
+      <p>Inputs:</p>
+      <ul>
+        <li><code>frame_a</code>: Input frame for external connections</li>
+      </ul>
+      <p>Outputs:</p>
+      <ul>
+        <li><code>frame_b</code>: Output frame for external connections</li>
+      </ul>
+      <p>The hydrodynamic forces are applied to the body through the HydrodynamicBlock6D component, 
+      which calculates drag, power take-off, hydrostatic, and radiation forces based on the body's motion.</p>
+      <p>Note: The body's shape parameters (height, length, width) and mass can be adjusted as needed for specific applications.</p>
+    </html>"),
+      Icon(graphics = {Text(origin = {-2, -95}, extent = {{-58, 15}, {62, -5}}, textString = "Rigid Body 6D"), Rectangle(origin = {3, -10}, fillColor = {211, 215, 207}, fillPattern = FillPattern.Solid, extent = {{-95, 50}, {89, -50}}), Text(origin = {0, 54}, extent = {{-100, 16}, {100, -24}}, textString = "%name")}));
+  end BodyHD6D;
+    model ExcitationForce "1D Excitation Force Model for Hydrodynamic Systems"
+    extends Modelica.Blocks.Icons.Block;
+    // Output connector
+    Modelica.Blocks.Interfaces.RealOutput y[3] "Excitation force vector [N] (only vertical component non-zero)" annotation(
+      Placement(transformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, 0}, extent = {{-10, -10}, {10, 10}})));
+    // Import the CombiTimeTable for data input
+    import Modelica.Blocks.Sources.CombiTimeTable;
+    // Excitation force data input
+    CombiTimeTable excitationData(tableOnFile = true, fileName = "C:/Users/Duke/SysModel2024/DragSystem/ExcF9.csv", tableName = "excitation", columns = {2}, extrapolation = Modelica.Blocks.Types.Extrapolation.HoldLastPoint) "Time series data for vertical excitation force";
+  equation
+  // Apply excitation force only in the vertical direction (third element)
+    y = {0, 0, excitationData.y[1]};
+    annotation(
+      Documentation(info = "<html>
+      <h4>1D Excitation Force Model for Hydrodynamic Systems</h4>
+      <p>This model represents the excitation force for hydrodynamic systems, 
+      considering only the vertical direction (1D model).</p>
+      
+      <p>Model Description:</p>
+      <p>The excitation force is applied solely in the vertical direction (third element of the output vector). 
+      The force magnitude is obtained from a time series data file, allowing for the representation of 
+      time-varying excitation forces such as those caused by waves in marine applications.</p>
+      
+      <p>Inputs:</p>
+      <ul>
+        <li>No direct inputs. The excitation force is read from an external CSV file.</li>
+      </ul>
+      
+      <p>Outputs:</p>
+      <ul>
+        <li><code>y[3]</code>: Excitation force vector [N] (force applied only in the vertical direction, third element)</li>
+      </ul>
+      
+      <p>Key Components:</p>
+      <ul>
+        <li><code>excitationData</code>: CombiTimeTable that reads the excitation force data from a CSV file</li>
+      </ul>
+      
+      <p>File Input:</p>
+      <ul>
+        <li>File path: C:/Users/Duke/SysModel2024/DragSystem/ExcF6.csv</li>
+        <li>Table name: 'excitation'</li>
+        <li>Only the second column of the CSV file is used (assumed to contain force values)</li>
+      </ul>
+      
+      <p>Notes:</p>
+      <ul>
+        <li>The model assumes that the excitation force acts only in the vertical direction, simplifying the calculations for many marine applications.</li>
+        <li>The excitation force data is held at its last value if the simulation time exceeds the data in the input file.</li>
+        <li>Ensure that the CSV file path is correct and the file is accessible for successful simulation.</li>
+      </ul>
+    </html>"),
+      Icon(graphics = {Text(extent = {{-100, 100}, {100, -100}}, textString = "1D Exc F", fontName = "Arial")}));
+  end ExcitationForce;
+  
+  
   end Testing;
+
+  package Connector
+    // Sensor readings
+
+    connector absolutePosition_con
+      Modelica.Blocks.Interfaces.RealInput u_abs[3] "Linear displacement vector [m]" annotation(
+        Placement(transformation(origin = {-120, 84}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 82}, extent = {{-20, -20}, {20, 20}})));
+      Modelica.Blocks.Interfaces.RealInput theta_abs[3] "Angular displacement vector [rad]" annotation(
+        Placement(transformation(origin = {-120, 36}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 28}, extent = {{-20, -20}, {20, 20}})));
+    end absolutePosition_con;
+
+    connector absoluteVelocity_con
+      Modelica.Blocks.Interfaces.RealInput v_abs[3] "Absolute linear velocity vector [m/s]" annotation(
+        Placement(transformation(origin = {-120, -42}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -22}, extent = {{-20, -20}, {20, 20}})));
+      Modelica.Blocks.Interfaces.RealInput omega_abs[3] "Absolute angular velocity vector [rad/s]" annotation(
+        Placement(transformation(origin = {-120, -82}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -76}, extent = {{-20, -20}, {20, 20}})));
+    end absoluteVelocity_con;
+
+    // Force and torque output
+
+    connector forceTorque_con
+      Modelica.Blocks.Interfaces.RealOutput F[6] "Force/Torque vector [N,N*m]" annotation(
+        Placement(transformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}})));
+    end forceTorque_con;
+
+    connector inputOutput_con
+      Modelica.Mechanics.MultiBody.Interfaces.Frame_a frame_a "Input frame" annotation(
+        Placement(transformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}})));
+      Modelica.Mechanics.MultiBody.Interfaces.Frame_b frame_b "Output frame" annotation(
+        Placement(transformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}})));
+    end inputOutput_con;
+
+    connector input_con
+      Modelica.Mechanics.MultiBody.Interfaces.Frame_a frame_a "Input frame" annotation(
+        Placement(transformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}})));
+    end input_con;
+
+    /*connector sensorOutput_con
+          Modelica.Blocks.Interfaces.RealOutput u_abs[3] "Linear displacement vector [m]" annotation(
+              Placement(transformation(origin = {110, 92}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 90}, extent = {{-10, -10}, {10, 10}})));
+          Modelica.Blocks.Interfaces.RealOutput v_abs[3] "Absolute linear velocity vector [m/s]" annotation(
+              Placement(transformation(origin = {108, -34}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, -26}, extent = {{-10, -10}, {10, 10}})));
+          Modelica.Blocks.Interfaces.RealOutput theta_abs[3] "Angular displacement vector [rad]" annotation(
+                Placement(transformation(origin = {108, 42}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {109, 40}, extent = {{-10, -10}, {10, 10}})));
+          Modelica.Blocks.Interfaces.RealOutput omega_abs[3] "Absolute angular velocity vector [rad/s]" annotation(
+                Placement(transformation(origin = {110, -94}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, -82}, extent = {{-10, -10}, {10, 10}})));
+          end sensorOutput_con; */
+
+    connector forceTorqueSum_con
+      Modelica.Blocks.Interfaces.RealInput Fr[6] "Radiation Force [N]" annotation(
+        Placement(transformation(origin = {-120, 84}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 82}, extent = {{-20, -20}, {20, 20}})));
+      Modelica.Blocks.Interfaces.RealInput Fhs[6] "Hydrostatic force [N]" annotation(
+        Placement(transformation(origin = {-120, 36}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 28}, extent = {{-20, -20}, {20, 20}})));
+      Modelica.Blocks.Interfaces.RealInput Fd[6] "Drag force [N]" annotation(
+        Placement(transformation(origin = {-120, -42}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -22}, extent = {{-20, -20}, {20, 20}})));
+      Modelica.Blocks.Interfaces.RealInput Fpto[6] "PTO force [N]" annotation(
+        Placement(transformation(origin = {-120, -82}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -76}, extent = {{-20, -20}, {20, 20}})));
+    end forceTorqueSum_con;
+
+    connector forceandTorque_con
+      Modelica.Blocks.Interfaces.RealOutput F[3] "Translational drag force vector [N]" annotation(
+        Placement(transformation(origin = {108, 50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 50}, extent = {{-10, -10}, {10, 10}})));
+      Modelica.Blocks.Interfaces.RealOutput T[3] "Rotational drag torque vector [N*m]" annotation(
+        Placement(transformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}})));
+    end forceandTorque_con;
+  end Connector;
 
   connector Connectored
     Modelica.Blocks.Interfaces.RealInput u[3] "Linear velocity vector [m/s]" annotation(
@@ -1973,72 +2068,6 @@ package Hydrodynamic
         <p>The drag coefficients are combined into a diagonal matrix to allow for different coefficients in each dimension.</p>
       </html>"));
   end DragForce6D;
-
-  package Connector
-    // Sensor readings
-
-    connector absolutePosition_con
-      Modelica.Blocks.Interfaces.RealInput u_abs[3] "Linear displacement vector [m]" annotation(
-        Placement(transformation(origin = {-120, 84}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 82}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput theta_abs[3] "Angular displacement vector [rad]" annotation(
-        Placement(transformation(origin = {-120, 36}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 28}, extent = {{-20, -20}, {20, 20}})));
-    end absolutePosition_con;
-
-    connector absoluteVelocity_con
-      Modelica.Blocks.Interfaces.RealInput v_abs[3] "Absolute linear velocity vector [m/s]" annotation(
-        Placement(transformation(origin = {-120, -42}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -22}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput omega_abs[3] "Absolute angular velocity vector [rad/s]" annotation(
-        Placement(transformation(origin = {-120, -82}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -76}, extent = {{-20, -20}, {20, 20}})));
-    end absoluteVelocity_con;
-
-    // Force and torque output
-
-    connector forceTorque_con
-      Modelica.Blocks.Interfaces.RealOutput F[6] "Force/Torque vector [N,N*m]" annotation(
-        Placement(transformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 0}, extent = {{-10, -10}, {10, 10}})));
-    end forceTorque_con;
-
-    connector inputOutput_con
-      Modelica.Mechanics.MultiBody.Interfaces.Frame_a frame_a "Input frame" annotation(
-        Placement(transformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}})));
-      Modelica.Mechanics.MultiBody.Interfaces.Frame_b frame_b "Output frame" annotation(
-        Placement(transformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {102, 0}, extent = {{-16, -16}, {16, 16}})));
-    end inputOutput_con;
-
-    connector input_con
-      Modelica.Mechanics.MultiBody.Interfaces.Frame_a frame_a "Input frame" annotation(
-        Placement(transformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}}), iconTransformation(origin = {-102, 0}, extent = {{-16, -16}, {16, 16}})));
-    end input_con;
-
-    /*connector sensorOutput_con
-          Modelica.Blocks.Interfaces.RealOutput u_abs[3] "Linear displacement vector [m]" annotation(
-              Placement(transformation(origin = {110, 92}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 90}, extent = {{-10, -10}, {10, 10}})));
-          Modelica.Blocks.Interfaces.RealOutput v_abs[3] "Absolute linear velocity vector [m/s]" annotation(
-              Placement(transformation(origin = {108, -34}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, -26}, extent = {{-10, -10}, {10, 10}})));
-          Modelica.Blocks.Interfaces.RealOutput theta_abs[3] "Angular displacement vector [rad]" annotation(
-                Placement(transformation(origin = {108, 42}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {109, 40}, extent = {{-10, -10}, {10, 10}})));
-          Modelica.Blocks.Interfaces.RealOutput omega_abs[3] "Absolute angular velocity vector [rad/s]" annotation(
-                Placement(transformation(origin = {110, -94}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, -82}, extent = {{-10, -10}, {10, 10}})));
-          end sensorOutput_con; */
-
-    connector forceTorqueSum_con
-      Modelica.Blocks.Interfaces.RealInput Fr[6] "Radiation Force [N]" annotation(
-        Placement(transformation(origin = {-120, 84}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 82}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput Fhs[6] "Hydrostatic force [N]" annotation(
-        Placement(transformation(origin = {-120, 36}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-118, 28}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput Fd[6] "Drag force [N]" annotation(
-        Placement(transformation(origin = {-120, -42}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -22}, extent = {{-20, -20}, {20, 20}})));
-      Modelica.Blocks.Interfaces.RealInput Fpto[6] "PTO force [N]" annotation(
-        Placement(transformation(origin = {-120, -82}, extent = {{-20, -20}, {20, 20}}), iconTransformation(origin = {-120, -76}, extent = {{-20, -20}, {20, 20}})));
-    end forceTorqueSum_con;
-
-    connector forceandTorque_con
-      Modelica.Blocks.Interfaces.RealOutput F[3] "Translational drag force vector [N]" annotation(
-        Placement(transformation(origin = {108, 50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {110, 50}, extent = {{-10, -10}, {10, 10}})));
-      Modelica.Blocks.Interfaces.RealOutput T[3] "Rotational drag torque vector [N*m]" annotation(
-        Placement(transformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}}), iconTransformation(origin = {108, -50}, extent = {{-10, -10}, {10, 10}})));
-    end forceandTorque_con;
-  end Connector;
 
   model ForceToqueSum
     extends Hydrodynamic.Connector.forceandTorque_con;
