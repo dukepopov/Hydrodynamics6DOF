@@ -15,7 +15,7 @@ package Hydrodynamic
         Placement(transformation(origin = {-14, -20}, extent = {{-10, -10}, {10, 10}})));
       // Hydrodynamic body component
       // Wave profile component
-      Forces.HydrodynamicBlock6D hydrodynamicBlock6D(I_11 = 0, I_22 = 0, I_33 = 0, I_21 = 0, I_31 = 0, I_32 = 0, enablePTOForce = false, enableDragForce = false) annotation(
+      Forces.HydrodynamicBlock6D hydrodynamicBlock6D(I_11 = 0, I_22 = 0, I_33 = 0, I_21 = 0, I_31 = 0, I_32 = 0, enablePTOForce = false, enableDragForce = false, enableRadiationForce = true) annotation(
         Placement(transformation(origin = {12, -20}, extent = {{-10, -10}, {10, 10}})));
       WaveProfile.IrregularWave.PiersonMoskowitzWave piersonMoskowitzWave annotation(
         Placement(transformation(origin = {70, -20}, extent = {{-10, 10}, {10, -10}}, rotation = -180)));
@@ -87,7 +87,7 @@ package Hydrodynamic
         
         <p><b>Package Contents</b></p>
         <ul>
-          <li><b>SingleBodyWEC1D</b>: A 1D model of a single-body wave energy converter.</li>
+          <li><b>SingleBodyWEC1D</b>: A 1D model of a single-body wave energy converter. The hydrodynamic data from the Toroidal Float of the US DoE RM-3</li>
         </ul>
         
         <p><b>Usage</b></p>
@@ -107,12 +107,12 @@ package Hydrodynamic
       extends Hydrodynamic.Connector.absolutePosition_con;
       extends Hydrodynamic.Connector.forceTorque_con;
       // Hydrostatic restoring coefficients
-      parameter Real G1 = 0 "Hydrostatic restoring coefficient for x-axis translation [N/m]";
-      parameter Real G2 = 0 "Hydrostatic restoring coefficient for y-axis translation [N/m]";
-      parameter Real G3 = 2800951.20000000 "Hydrostatic restoring coefficient for z-axis translation [N/m]";
-      parameter Real G4 = 0 "Hydrostatic restoring coefficient for x-axis rotation [N*m/rad]";
-      parameter Real G5 = 0 "Hydrostatic restoring coefficient for y-axis rotation [N*m/rad]";
-      parameter Real G6 = 0 "Hydrostatic restoring coefficient for z-axis rotation [N*m/rad]";
+      parameter Real G1 "Hydrostatic restoring coefficient for x-axis translation [N/m]";
+      parameter Real G2 "Hydrostatic restoring coefficient for y-axis translation [N/m]";
+      parameter Real G3 "Hydrostatic restoring coefficient for z-axis translation [N/m]";
+      parameter Real G4 "Hydrostatic restoring coefficient for x-axis rotation [N*m/rad]";
+      parameter Real G5 "Hydrostatic restoring coefficient for y-axis rotation [N*m/rad]";
+      parameter Real G6 "Hydrostatic restoring coefficient for z-axis rotation [N*m/rad]";
       parameter Real G[6, 6] = diagonal({G1, G2, G3, G4, G5, G6}) "Combined hydrostatic restoring coefficient matrix";
       // Enable/disable force
       parameter Boolean enableHydrostaticForce = true "Switch to enable/disable hydrostatic force calculation";
@@ -120,11 +120,11 @@ package Hydrodynamic
       Real u_theta[6] "Combined displacement vector [m, rad]";
       Real fhs[6] "Hydrostatic force/torque vector [N, N*m]";
     equation
-// Combine linear and angular displacements into a single vector
+    // Combine linear and angular displacements into a single vector
       u_theta = cat(1, u_abs, theta_abs);
-// Calculate the 6D hydrostatic force/torque vector
+    // Calculate the 6D hydrostatic force/torque vector
       fhs = -G*u_theta;
-// Use the switch to conditionally output the force and torque
+    // Use the switch to conditionally output the force and torque
       if enableHydrostaticForce then
         F = fhs;
       else
@@ -223,15 +223,15 @@ package Hydrodynamic
       extends Hydrodynamic.Connector.absoluteVelocity_con;
       extends Hydrodynamic.Connector.forceTorque_con;
       // Fluid and reference parameters
-      parameter Real rho = 1.25 "Density of fluid [kg/m^3]";
-      parameter Real A = 1 "Reference area [m^2]";
+      parameter Real rho "Density of fluid [kg/m^3]";
+      parameter Real A "Reference area [m^2]";
       // Drag coefficients
-      parameter Real Cdx = 1 "Translational drag coefficient for x-axis [-]";
-      parameter Real Cdy = 1 "Translational drag coefficient for y-axis [-]";
-      parameter Real Cdz = 1 "Translational drag coefficient for z-axis [-]";
-      parameter Real Crx = 1 "Rotational drag coefficient for x-axis [-]";
-      parameter Real Cry = 1 "Rotational drag coefficient for y-axis [-]";
-      parameter Real Crz = 1 "Rotational drag coefficient for z-axis [-]";
+      parameter Real Cdx "Translational drag coefficient for x-axis [-]";
+      parameter Real Cdy "Translational drag coefficient for y-axis [-]";
+      parameter Real Cdz "Translational drag coefficient for z-axis [-]";
+      parameter Real Crx "Rotational drag coefficient for x-axis [-]";
+      parameter Real Cry "Rotational drag coefficient for y-axis [-]";
+      parameter Real Crz "Rotational drag coefficient for z-axis [-]";
       parameter Real Cd[6, 6] = diagonal({Cdx, Cdy, Cdz, Crx, Cry, Crz}) "Combined drag coefficient matrix";
       // Control parameter
       parameter Boolean enableDragForce = true "Switch to enable/disable drag force calculation";
@@ -299,25 +299,25 @@ package Hydrodynamic
       Modelica.Units.SI.TranslationalDampingConstant Bpto = Modelica.Math.Vectors.interpolate(w, Rdamp, omega_peak);
       Modelica.Units.SI.TranslationalSpringConstant Kpto;
       Modelica.Units.SI.Mass Mpto;
-      parameter Modelica.Units.SI.AngularFrequency omega_peak = 0.9423 "Peak spectral frequency";
+      parameter Modelica.Units.SI.AngularFrequency omega_peak "Peak spectral frequency";
       //Modelica.Units.SI.Force Fpto;
       //Modelica.Units.SI.Power Ppto;
       //Modelica.Blocks.Math.ContinuousMean Ppto_avg;
       // Proportional gain parameters
-      parameter Real Kpx = 0.0 "Proportional gain for x-axis translation [N/(m/s)]";
-      parameter Real Kpy = 0.0 "Proportional gain for y-axis translation [N/(m/s)]";
+      parameter Real Kpx "Proportional gain for x-axis translation [N/(m/s)]";
+      parameter Real Kpy "Proportional gain for y-axis translation [N/(m/s)]";
       Real Kpz "Proportional gain for z-axis translation [N/(m/s)]";
-      parameter Real Kprx = 0.0 "Proportional gain for x-axis rotation [N*m/(rad/s)]";
-      parameter Real Kpry = 0.0 "Proportional gain for y-axis rotation [N*m/(rad/s)]";
-      parameter Real Kprz = 0.0 "Proportional gain for z-axis rotation [N*m/(rad/s)]";
+      parameter Real Kprx "Proportional gain for x-axis rotation [N*m/(rad/s)]";
+      parameter Real Kpry "Proportional gain for y-axis rotation [N*m/(rad/s)]";
+      parameter Real Kprz "Proportional gain for z-axis rotation [N*m/(rad/s)]";
       Real Kp[6, 6] "Combined proportional gain matrix";
       // Integral gain parameters
-      parameter Real Kix = 0.0 "Integral gain for x-axis translation [N/m]";
-      parameter Real Kiy = 0.0 "Integral gain for y-axis translation [N/m]";
+      parameter Real Kix "Integral gain for x-axis translation [N/m]";
+      parameter Real Kiy "Integral gain for y-axis translation [N/m]";
       Real Kiz "Integral gain for z-axis translation [N/m]";
-      parameter Real Kirx = 0.0 "Integral gain for x-axis rotation [N*m/rad]";
-      parameter Real Kiry = 0.0 "Integral gain for y-axis rotation [N*m/rad]";
-      parameter Real Kirz = 0.0 "Integral gain for z-axis rotation [N*m/rad]";
+      parameter Real Kirx "Integral gain for x-axis rotation [N*m/rad]";
+      parameter Real Kiry "Integral gain for y-axis rotation [N*m/rad]";
+      parameter Real Kirz "Integral gain for z-axis rotation [N*m/rad]";
       Real Ki[6, 6] "Combined integral gain matrix";
       // Control parameter
       parameter Boolean enablePTOForce = true "Switch to enable/disable PTO force calculation";
@@ -425,6 +425,7 @@ package Hydrodynamic
       // HydrodynamicBlock6D components and connections
       RadiationF radiationF(A = A, B = B, C = C, D = D, enableRadiationForce = enableRadiationForce) "1D Radiation Force Calculation" annotation(
         Placement(transformation(origin = {16, 56}, extent = {{-10, -10}, {10, 10}})));
+      
       // Parameters for PTO6D
       parameter Boolean enablePTOForce = false "Switch to enable/disable PTO force calculation" annotation(
         Dialog(group = "PTO Parameters"));
@@ -454,9 +455,13 @@ package Hydrodynamic
         Dialog(group = "PTO Parameters"));
       parameter RotationalSpringConstant Kirz = 0.0 "Integral gain for z-axis rotation" annotation(
         Dialog(group = "PTO Parameters"));
+      
       // PTO components
       PTO6D pto6d(fileName = fileName1, omega_peak = omega_peak, Kpx = Kpx, Kpy = Kpy, Kprx = Kprx, Kpry = Kpry, Kprz = Kprz, Kix = Kix, Kiy = Kiy, Kirx = Kirx, Kiry = Kiry, Kirz = Kirz, enablePTOForce = enablePTOForce, controllerSelect = controllerSelect) "Power Take-Off force calculation" annotation(
         Placement(transformation(origin = {16, -46}, extent = {{-10, -10}, {10, 10}})));
+      
+      
+      
       // Parameters for DragForce6D
       parameter Boolean enableDragForce = false "Switch to enable/disable drag force calculation" annotation(
         Dialog(group = "Drag Parameters"));
@@ -564,50 +569,85 @@ package Hydrodynamic
       extends Hydrodynamic.Connector.forceTorque_con;
     
       // State-space model parameters for 3D radiation force
-      parameter Real A[3,3] = [
-        {0, 1, 0},
-        {-1.01116567551434, -0.936555983964093, 0},
-        {0, 0, 0}
-      ] "State matrix for 3D model";
+      parameter Real A11[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 3D model";
+      parameter Real A12[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 3D model";
+      parameter Real A13[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 3D model";
+      parameter Real A21[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 3D model";
+      parameter Real A22[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 3D model";
+      parameter Real A23[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 3D model";
+      parameter Real A31[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 3D model";
+      parameter Real A32[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 3D model";
+      parameter Real A33[2, 2] = [0, 1; -1.01116567551434, -0.936555983964093] "State matrix for 3D model";
+      
+      parameter Real B11[2] = {683236.706073938, -585411.342188539} "Input vector for 3D model";
+      parameter Real B12[2] = {683236.706073938, -585411.342188539} "Input vector for 3D model";
+      parameter Real B13[2] = {683236.706073938, -585411.342188539} "Input vector for 3D model";
+      parameter Real B21[2] = {683236.706073938, -585411.342188539} "Input vector for 3D model";
+      parameter Real B22[2] = {683236.706073938, -585411.342188539} "Input vector for 3D model";
+      parameter Real B23[2] = {683236.706073938, -585411.342188539} "Input vector for 3D model";
+      parameter Real B31[2] = {683236.706073938, -585411.342188539} "Input vector for 3D model";
+      parameter Real B32[2] = {683236.706073938, -585411.342188539} "Input vector for 3D model";
+      parameter Real B33[2] = {683236.706073938, -585411.342188539} "Input vector for 3D model";
+      
+      parameter Real C11[2] = {1, 0} "Output vector for 3D model";
+      parameter Real C12[2] = {1, 0} "Output vector for 3D model";
+      parameter Real C13[2] = {1, 0} "Output vector for 3D model";
+      parameter Real C21[2] = {1, 0} "Output vector for 3D model";
+      parameter Real C22[2] = {1, 0} "Output vector for 3D model";
+      parameter Real C23[2] = {1, 0} "Output vector for 3D model";
+      parameter Real C31[2] = {1, 0} "Output vector for 3D model";
+      parameter Real C32[2] = {1, 0} "Output vector for 3D model";
+      parameter Real C33[2] = {1, 0} "Output vector for 3D model";
+      
+      parameter Real D11 = 0 "Feed-through scalar for 3D model";
+      parameter Real D12 = 0 "Feed-through scalar for 3D model";
+      parameter Real D13 = 0 "Feed-through scalar for 3D model";
+      parameter Real D21 = 0 "Feed-through scalar for 3D model";
+      parameter Real D22 = 0 "Feed-through scalar for 3D model";
+      parameter Real D23 = 0 "Feed-through scalar for 3D model";
+      parameter Real D31 = 0 "Feed-through scalar for 3D model";
+      parameter Real D32 = 0 "Feed-through scalar for 3D model";
+      parameter Real D33 = 0 "Feed-through scalar for 3D model";
     
-      parameter Real B[3,3] = [
-        {683236.706073938, 0, 0},
-        {-585411.342188539, 0, 0},
-        {0, 0, 0}
-      ] "Input matrix for 3D model";
-    
-      parameter Real C[3,3] = [
-        {1, 0, 0},
-        {0, 0, 0},
-        {0, 0, 0}
-      ] "Output matrix for 3D model";
-    
-      parameter Real D[3,3] = [
-        {0, 0, 0},
-        {0, 0, 0},
-        {0, 0, 0}
-      ] "Feed-through matrix for 3D model";
+      parameter Real A[3, 3, 2,2] = {
+        {A11, A12, A13},
+        {A21, A22, A23},
+        {A31, A32, A33}
+      } "State matrix for 3D model";
+      parameter Real B[3, 3, 2] = {
+        {B11, B12, B13},
+        {B21, B22, B23},
+        {B31, B32, B33}
+      } "Input matrix for 3D model";
+      parameter Real C[3, 3, 2] = {
+        {C11, C12, C13},
+        {C21, C22, C23},
+        {C31, C32, C33}
+      } "Output matrix for 3D model";
+      parameter Real D[3, 3] = {
+        {D11, D12, D13},
+        {D21, D22, D23},
+        {D31, D32, D33}
+      } "Feed-through matrix for 3D model";
     
       // Control parameter
       parameter Boolean enableRadiationForce = true "Switch to enable/disable 1D radiation force calculation";
     
       // State variables
-      Real x[3,2] "State vector for 1D radiation force model";
+      Real x[18] "State vector for 1D radiation force model";
       Real F_rad[3] "Calculated 1D radiation force [N]";
     
     initial equation
-      for i in 1:3 loop
-        for j in 1:2 loop
-          x[i, j] = 0;
-        end for;
-      end for;
+      x = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} "Initialize state vector to zero";
     
     equation
       // 3D Radiation force state-space model
       for i in 1:3 loop
-        der(x[i, 1:2]) = A[i, 1:2] * x[i, 1:2] + B[i, 1:2] * v_abs[i];
-        F_rad[i] = C[i, 1:2] * x[i, 1:2] + D[i, i] * v_abs[i];
+      for j in 1:3 loop
+         der(x[2*i-1:2*i]) = A[i, :, :] * x[2*i-1:2*i] + B[i, :, :] * v_abs;
+        F_rad[i] = C[i, :, :] * x[2*i-1:2*i] + D[i, :] * v_abs;
       end for;
+    end for;
     
       // Output: 3D radiation force
       if enableRadiationForce then
@@ -618,9 +658,9 @@ package Hydrodynamic
     
       annotation(
         Documentation(info = "<html>
-            <h4>1D Radiation Force Model for Hydrodynamic Systems</h4>
+            <h4>3D Radiation Force Model for Hydrodynamic Systems</h4>
             <p>This model calculates the radiation force for hydrodynamic systems using a state-space representation, 
-            considering only the vertical direction (1D model).</p>
+            considering only the vertical directions (3D model).</p>
             
             <p>Model Description:</p>
             <p>The radiation force is computed solely for the vertical direction (third element of the vectors) 
@@ -662,15 +702,8 @@ package Hydrodynamic
         <li><b>HydrostaticForce6D:</b> Calculates 6-dimensional hydrostatic force and torque, including both translational and rotational components.</li>
         <li><b>RadiationF1D:</b> Calculates 1-dimensional radiation force using a state-space representation for hydrodynamic systems.</li>
         <li><b>DragForce6D:</b> Computes 6-dimensional drag force and torque, taking into account both translational and rotational drag.</li>
-        <li><b>PTO6D:</b> Models a 6-dimensional Power Take-Off (PTO) system using proportional and integral control for both translational and rotational motion.</li>
+        <li><b>PTO6D:</b> Models a 6-dimensional Power Take-Off (PTO) system using reactive and passive control for both translational and rotational motion.</li>
         <li><b>HydrodynamicBlock6D:</b> Calculates and applies 6-dimensional hydrodynamic forces and moments to a multibody system.</li>
-      </ul>
-      <p>These models can be used individually or combined to create complex hydrodynamic simulations for applications such as:</p>
-      <ul>
-        <li>Wave energy converters</li>
-        <li>Floating offshore wind turbines</li>
-        <li>Marine vessels and structures</li>
-        <li>Underwater vehicles</li>
       </ul>
       <p>Each model is thoroughly documented and includes customizable parameters to adapt to various scenarios and environmental conditions.</p>
     </html>"),
@@ -1085,13 +1118,6 @@ package Hydrodynamic
         <p><strong>BretschneiderWave:</strong> Implements the Bretschneider spectrum, a two-parameter spectrum also known as the modified Pierson-Moskowitz spectrum.</p>
         <p><strong>JonswapWave:</strong> Implements the JONSWAP (Joint North Sea Wave Project) spectrum, particularly useful for modeling developing seas and storm conditions.</p>
       </ul>
-      <p>These models enable realistic simulation of ocean conditions for various marine engineering applications, including:</p>
-      <ul>
-        <p>- Offshore structure design and analysis</p>
-        <p>- Wave energy converter performance evaluation</p>
-        <p>- Ship motion studies</p>
-        <p>- Coastal engineering projects</p>
-      </ul>
       <p>Each model provides options for customizing sea state parameters and offers both wave elevation profiles and excitation force calculations.</p>
     </html>"),
         Icon(graphics = {Line(points = {{-80, 0}, {-60, 20}, {-40, -20}, {-20, 10}, {0, -10}, {20, 30}, {40, -30}, {60, 15}, {80, -15}}, color = {0, 0, 255}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-90, -70}, {90, -90}}, lineColor = {0, 0, 255}, fillColor = {0, 0, 255}, fillPattern = FillPattern.Solid, textString = "Irregular Wave")}));
@@ -1343,12 +1369,12 @@ package Hydrodynamic
       <p>The Connector package provides a set of connectors designed for integrating various force and motion models within a mechanical or marine system simulation. It includes connectors for handling position, velocity, force, torque, and frame interactions.</p>
       <p><strong>Connectors Included:</strong></p>
       <ul>
-        <li><strong>absolutePosition_con:</strong> Handles linear and angular displacement vectors, providing inputs for the absolute position of a component.</li>
-        <li><strong>absoluteVelocity_con:</strong> Manages absolute linear and angular velocity vectors, offering inputs for the velocities of a component.</li>
+        <li><strong>absolutePosition_con:</strong> Handles linear and angular displacement vectors, providing inputs for the absolute position of a component. Taking input from the AbsoluteSensor</li>
+        <li><strong>absoluteVelocity_con:</strong> Manages absolute linear and angular velocity vectors, offering inputs for the velocities of a component. Taking input from the AbsoluteSensor</li>
         <li><strong>forceTorque_con:</strong> Outputs a combined force and torque vector, essential for systems where forces and torques need to be monitored or applied.</li>
         <li><strong>inputOutput_con:</strong> Connects two frames, representing the input and output frames for mechanical interactions, such as joints or actuators.</li>
         <li><strong>input_con:</strong> Provides a single input frame for applications where only one frame is needed.</li>
-        <li><strong>forceTorqueSum_con:</strong> Aggregates various force types (radiation, hydrostatic, drag, PTO) into a single output, useful for summing multiple force effects.</li>
+        <li><strong>forceTorqueSum_con:</strong> Aggregates various force types (radiation, hydrostatic, drag, PTO) into a single output.</li>
         <li><strong>forceandTorque_con:</strong> Outputs translational drag forces and rotational drag torques, focused on drag-related effects in the system.</li>
       </ul>
       <p><strong>Applications:</strong></p>
@@ -1357,7 +1383,7 @@ package Hydrodynamic
         <li>Combining and analyzing multiple force sources in marine and mechanical simulations.</li>
         <li>Defining and connecting mechanical frames for accurate modeling of interactions.</li>
       </ul>
-      <p>This package is essential for creating detailed and accurate simulations of mechanical and marine systems, allowing for comprehensive analysis and system integration.</p>
+      <p>This package is essential for creating detailed and accurate simulations of mechanical and marine systems, allowing for comprehensive analysis and system integration. Separates torque and force outputs so they can be past to the worldforceandtorque block</p>
       </html>"));
   end Connector;
 
@@ -1401,7 +1427,7 @@ package Hydrodynamic
   annotation(
       Documentation(info = "<html>
       <p><strong>readHydroParam Model</strong></p>
-      <p>This model is designed to read and store hydrodynamic parameters from a MATLAB .mat file. These parameters are crucial for accurate modeling of radiation forces and other hydrodynamic effects in marine and offshore engineering applications.</p>
+      <p>This model is designed to read and store hydrodynamic parameters from a MATLAB .mat file. These parameters are crucial for accurate modeling of radiation forces and other hydrodynamic effects in marine and offshore engineering applications. This is also used to store parameters and extend to other blocks. </p>
       
       <p><strong>Parameters:</strong></p>
       <ul>
