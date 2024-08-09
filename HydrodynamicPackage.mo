@@ -1,9 +1,8 @@
 package Hydrodynamic
   extends Modelica.Icons.Package;
-
+  
   package Example
     extends Modelica.Icons.Package;
-
     model SingleBodyWEC1D "1D Single-Body Wave Energy Converter Model"
       extends Modelica.Icons.Package;
       // World component (no gravity, Z-axis pointing downwards)
@@ -120,11 +119,11 @@ package Hydrodynamic
       Real u_theta[6] "Combined displacement vector [m, rad]";
       Real fhs[6] "Hydrostatic force/torque vector [N, N*m]";
     equation
-    // Combine linear and angular displacements into a single vector
+      // Combine linear and angular displacements into a single vector
       u_theta = cat(1, u_abs, theta_abs);
-    // Calculate the 6D hydrostatic force/torque vector
+      // Calculate the 6D hydrostatic force/torque vector
       fhs = -G*u_theta;
-    // Use the switch to conditionally output the force and torque
+      // Use the switch to conditionally output the force and torque
       if enableHydrostaticForce then
         F = fhs;
       else
@@ -170,11 +169,11 @@ package Hydrodynamic
     initial equation
       x = {0, 0} "Initialize state vector to zero";
     equation
-// 1D Radiation force state-space model
-// Note: Only the third element of the velocity vector (vertical motion) is used
+      // 1D Radiation force state-space model
+      // Note: Only the third element of the velocity vector (vertical motion) is used
       der(x) = A*x + B[:, 1]*v_abs[3];
       F_rad = scalar(C*x) + D*v_abs[3];
-// Output: 1D radiation force only in the third element (vertical direction), with enable/disable switch
+      // Output: 1D radiation force only in the third element (vertical direction), with enable/disable switch
       if enableRadiationForce then
         F = {0, 0, -F_rad, 0, 0, 0};
       else
@@ -240,13 +239,13 @@ package Hydrodynamic
       Real fd[6] "6D drag force/torque vector [N, N*m]";
       Real v_omega[6] "Combined linear and angular velocity vector [m/s, rad/s]";
     equation
-// Calculate the combined constant term
+      // Calculate the combined constant term
       c = 0.5*rho*A;
-// Combine linear and angular velocities into a single vector
+      // Combine linear and angular velocities into a single vector
       v_omega = cat(1, v_abs, omega_abs);
-// Calculate the 6D drag force/torque vector
+      // Calculate the 6D drag force/torque vector
       fd = -c*Cd*v_omega.*abs(v_omega);
-// Use the switch to conditionally output the force and torque
+      // Use the switch to conditionally output the force and torque
       if enableDragForce then
         F = fd[1:3];
       else
@@ -280,26 +279,18 @@ package Hydrodynamic
     end DragForce6D;
 
     block PTO6D "6-Dimensional Power Take-Off (PTO) System"
+      extends Hydrodynamic.readHydroParam;
       extends Modelica.Blocks.Icons.Block;
       extends Hydrodynamic.Connector.absolutePosition_con;
       extends Hydrodynamic.Connector.absoluteVelocity_con;
       extends Hydrodynamic.Connector.forceTorque_con;
-      parameter String fileName = "C:/Users/Duke/SysModel2024/DragSystem/hydroCoeff_shit.mat" "Path to the hydroCoeff.mat file" annotation(
-        Dialog(group = "File Input"));
-      /* Frequency domain function parameters */
-      parameter Modelica.Units.SI.Mass M = scalar(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.m33", 1, 1)) "Total mass of the body (including ballast)";
-      parameter Modelica.Units.SI.Mass Ainf = scalar(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.Ainf33", 1, 1)) "Added mass at maximum (cut-off) frequency";
-      parameter Modelica.Units.SI.TranslationalSpringConstant Khs = scalar(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.Khs33", 1, 1)) "Hydrostatic stiffness";
-      parameter Integer wDims[:] = Modelica.Utilities.Streams.readMatrixSize(fileName, "hydroCoeff.w");
-      parameter Integer wSize = wDims[2];
-      parameter Real Adep[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.added_mass", wSize, 1)) "Frequency dependent added mass";
-      parameter Real Rdamp[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.radiation_damping", wSize, 1)) "Radiation damping";
-      parameter Real w[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.w", 1, wSize));
+      
+      parameter Modelica.Units.SI.AngularFrequency omega_peak  "Peak spectral frequency";
       Modelica.Units.SI.Mass amdep = Modelica.Math.Vectors.interpolate(w, Adep, omega_peak);
       Modelica.Units.SI.TranslationalDampingConstant Bpto = Modelica.Math.Vectors.interpolate(w, Rdamp, omega_peak);
       Modelica.Units.SI.TranslationalSpringConstant Kpto;
       Modelica.Units.SI.Mass Mpto;
-      parameter Modelica.Units.SI.AngularFrequency omega_peak "Peak spectral frequency";
+      
       //Modelica.Units.SI.Force Fpto;
       //Modelica.Units.SI.Power Ppto;
       //Modelica.Blocks.Math.ContinuousMean Ppto_avg;
@@ -335,10 +326,10 @@ package Hydrodynamic
       Ki = diagonal({Kix, Kiy, Kiz, Kirx, Kiry, Kirz});
       u_theta = cat(1, u_abs, theta_abs);
       v_omega = cat(1, v_abs, omega_abs);
-// Calculate the combined PTO force/torque vector
+      // Calculate the combined PTO force/torque vector
       fpto = Kp*v_omega + Ki*u_theta;
       Mpto = M + amdep;
-// Use the switch to conditionally output the force and torque
+      // Use the switch to conditionally output the force and torque
       if enablePTOForce then
         F = -fpto;
       else
@@ -349,7 +340,7 @@ package Hydrodynamic
         bpto = (Bpto^2 + (omega_peak*(Mpto) - Khs/omega_peak)^2)^(1/2);
       elseif controllerSelect == "reactive" then
         Kpto = (Mpto)*omega_peak - Khs/omega_peak;
-// no khs in here
+        // no khs in here
         bpto = Bpto;
       end if;
       annotation(
@@ -459,9 +450,7 @@ package Hydrodynamic
       // PTO components
       PTO6D pto6d(fileName = fileName1, omega_peak = omega_peak, Kpx = Kpx, Kpy = Kpy, Kprx = Kprx, Kpry = Kpry, Kprz = Kprz, Kix = Kix, Kiy = Kiy, Kirx = Kirx, Kiry = Kiry, Kirz = Kirz, enablePTOForce = enablePTOForce, controllerSelect = controllerSelect) "Power Take-Off force calculation" annotation(
         Placement(transformation(origin = {16, -46}, extent = {{-10, -10}, {10, 10}})));
-      
-      
-      
+
       // Parameters for DragForce6D
       parameter Boolean enableDragForce = false "Switch to enable/disable drag force calculation" annotation(
         Dialog(group = "Drag Parameters"));
@@ -481,9 +470,11 @@ package Hydrodynamic
         Dialog(group = "Drag Parameters"));
       parameter Real Crz = 100 "Rotational drag coefficient for z-axis" annotation(
         Dialog(group = "Drag Parameters"));
+      
       // Drag force components
       DragForce6D dragForce6D(rho = rho, A = A1, Cdx = Cdx, Cdy = Cdy, Cdz = Cdz, Crx = Crx, Cry = Cry, Crz = Crz, enableDragForce = enableDragForce) "Drag force calculation" annotation(
         Placement(transformation(origin = {16, 24}, extent = {{-10, -10}, {10, 10}})));
+      
       // Force and torque application components
       ForceToqueSum forceToqueSum annotation(
         Placement(transformation(origin = {50, 0}, extent = {{-10, -10}, {10, 10}})));
@@ -693,6 +684,78 @@ package Hydrodynamic
           </html>"),
         Icon(graphics = {Text(extent = {{-100, 100}, {100, -100}}, textString = "6D Rad F", fontName = "Arial")}));
     end RadiationF3D;
+
+    model RadiationF2D "1D Radiation Force Calculation for Hydrodynamic Systems"
+      extends Modelica.Blocks.Icons.Block;
+      extends Hydrodynamic.Connector.absolutePosition_con;
+      extends Hydrodynamic.Connector.absoluteVelocity_con;
+      extends Hydrodynamic.Connector.forceTorque_con;
+    
+     
+    
+      // Control parameter
+      parameter Boolean enableRadiationForce = true "Switch to enable/disable 1D radiation force calculation";
+    
+      // State variables
+      Real x[18] "State vector for 1D radiation force model";
+      Real F_rad[3] "Calculated 1D radiation force [N]";
+    
+    initial equation
+      x = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} "Initialize state vector to zero";
+    
+    equation
+      // 3D Radiation force state-space model
+      for i in 1:3 loop
+      for j in 1:3 loop
+         der(x[2*i-1:2*i]) = A[i, :, :] * x[2*i-1:2*i] + B[i, :, :] * v_abs;
+        F_rad[i] = C[i, :, :] * x[2*i-1:2*i] + D[i, :] * v_abs;
+      end for;
+    end for;
+    
+      // Output: 3D radiation force
+      if enableRadiationForce then
+        F = {F_rad[1], F_rad[2], F_rad[3], 0, 0, 0};
+      else
+        F = {0, 0, 0, 0, 0, 0};
+      end if;
+    
+      annotation(
+        Documentation(info = "<html>
+            <h4>3D Radiation Force Model for Hydrodynamic Systems</h4>
+            <p>This model calculates the radiation force for hydrodynamic systems using a state-space representation, 
+            considering only the vertical directions (3D model).</p>
+            
+            <p>Model Description:</p>
+            <p>The radiation force is computed solely for the vertical direction (third element of the vectors) 
+            based on the vertical velocity input. This simplification allows for efficient modeling of systems 
+            where the primary concern is the vertical motion, such as in wave energy converters or floating structures.</p>
+            
+            <p>Inputs:</p>
+            <ul>
+              <li><code>z[3]</code>: Position vector [m] (currently not used in calculations, included for future extensions)</li>
+              <li><code>v[3]</code>: Velocity vector [m/s] (only the third element, representing vertical velocity, is used)</li>
+            </ul>
+            
+            <p>Outputs:</p>
+            <ul>
+              <li><code>y[3]</code>: Radiation force vector [N] (force applied only in the vertical direction, third element)</li>
+            </ul>
+            
+            <p>Key Parameters:</p>
+            <ul>
+              <li><code>A</code>, <code>B</code>, <code>C</code>, <code>D</code>: State-space model matrices and vectors for the 1D system</li>
+              <li><code>enableRadiationForce</code>: Boolean switch to enable/disable the radiation force calculation</li>
+            </ul>
+            
+            <p>Notes:</p>
+            <ul>
+              <li>The state-space model parameters (A, B, C, D) should be adjusted based on the specific 1D hydrodynamic system being modeled.</li>
+              <li>This model assumes that the radiation force acts only in the vertical direction, simplifying the calculations for many marine applications.</li>
+              <li>The position input (z) is currently not used in the calculations but is included for potential future enhancements or compatibility with other models.</li>
+            </ul>
+          </html>"),
+        Icon(graphics = {Text(extent = {{-100, 100}, {100, -100}}, textString = "6D Rad F", fontName = "Arial")}));
+    end RadiationF2D;
     annotation(
       Documentation(info = "<html>
       <h4>Forces Package for Hydrodynamic Systems</h4>
@@ -756,18 +819,18 @@ package Hydrodynamic
         Real ExcCoeffIm "Imaginary component of excitation coefficient";
         Modelica.Units.SI.Length SSE "Sea surface elevation [m]";
       equation
-// Interpolate excitation coefficients (Re & Im) for the given wave frequency
+        // Interpolate excitation coefficients (Re & Im) for the given wave frequency
         ExcCoeffRe = Modelica.Math.Vectors.interpolate(w, F_excRe, omega);
         ExcCoeffIm = Modelica.Math.Vectors.interpolate(w, F_excIm, omega);
-// Define wave elevation profile (SSE)
+        // Define wave elevation profile (SSE)
         SSE = zeta*cos(omega*time);
-// Calculate and apply ramping to the excitation force
+        // Calculate and apply ramping to the excitation force
         if time < Trmp then
           wconn.F_exc = 0.5*(1 + cos(pi + (pi*time/Trmp)))*((ExcCoeffRe*zeta*cos(omega*time)) - (ExcCoeffIm*zeta*sin(omega*time)))*rho*g;
         else
           wconn.F_exc = ((ExcCoeffRe*zeta*cos(omega*time)) - (ExcCoeffIm*zeta*sin(omega*time)))*rho*g;
         end if;
-// Assign excitation force to output (vertical component only)
+        // Assign excitation force to output (vertical component only)
         y = {0, 0, wconn.F_exc};
         annotation(
           Documentation(info = "<html>
@@ -850,22 +913,22 @@ package Hydrodynamic
         Real ExcCoeffIm[n_omega] "Imaginary component of excitation coefficient for frequency components";
         Modelica.Units.SI.Length SSE "Sea surface elevation [m]";
       equation
-// Interpolate excitation coefficients (Re & Im) for each frequency component
+        // Interpolate excitation coefficients (Re & Im) for each frequency component
         for i in 1:n_omega loop
           ExcCoeffRe[i] = Modelica.Math.Vectors.interpolate(w, F_excRe, omega[i])*rho*g;
           ExcCoeffIm[i] = Modelica.Math.Vectors.interpolate(w, F_excIm, omega[i])*rho*g;
         end for;
-// Calculate sea surface elevation (SSE) as the sum of all wave components
+        // Calculate sea surface elevation (SSE) as the sum of all wave components
         SSE = sum(zeta.*cos(omega*time - 2*pi*epsilon));
-// Calculate and apply ramping to the excitation force
+        // Calculate and apply ramping to the excitation force
         if time < Trmp then
-// Ramp up the excitation force during the initial phase
+          // Ramp up the excitation force during the initial phase
           wconn.F_exc = 0.5*(1 + cos(pi + (pi*time/Trmp)))*sum((ExcCoeffRe.*zeta.*cos(omega*time - 2*pi*epsilon)) - (ExcCoeffIm.*zeta.*sin(omega*time - 2*pi*epsilon)));
         else
-// Apply full excitation force after the ramping period
+          // Apply full excitation force after the ramping period
           wconn.F_exc = sum((ExcCoeffRe.*zeta.*cos(omega*time - 2*pi*epsilon)) - (ExcCoeffIm.*zeta.*sin(omega*time - 2*pi*epsilon)));
         end if;
-// Assign excitation force to output (vertical component only)
+        // Assign excitation force to output (vertical component only)
         F = {0, 0, wconn.F_exc};
         T = {0, 0, 0};
         annotation(
@@ -889,7 +952,7 @@ package Hydrodynamic
               <li>Random seeds can be changed to generate different realizations of the same sea state</li>
             </ul>
           </html>"),
-          Icon(graphics = {Line(points = {{-80, 0}, {-60, 20}, {-40, -20}, {-20, 10}, {0, -10}, {20, 30}, {40, -30}, {60, 15}, {80, -15}}, color = {0, 0, 255}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-100, 50}, {100, -150}}, textString = "Pierson Moskowitz", fontName = "Arial")}, coordinateSystem(initialScale = 0.1)),
+          Icon(graphics = {Line(points = {{-80, 0}, {-60, 20}, {-40, -20}, {-20, 10}, {0, -10}, {20, 30}, {40, -30}, {60, 15}, {80, -15}}, color = {0, 0, 255}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-100, 50}, {100, -150}}, textString = " Pierson Moskowitz ", fontName = "Arial")}, coordinateSystem(initialScale = 0.1)),
           experiment(StartTime = 0, StopTime = 500, Tolerance = 1e-08, Interval = 0.05));
       end PiersonMoskowitzWave;
 
@@ -941,22 +1004,22 @@ package Hydrodynamic
         Real ExcCoeffIm[n_omega] "Imaginary component of excitation coefficient for frequency components";
         Modelica.Units.SI.Length SSE "Sea surface elevation [m]";
       equation
-// Interpolate excitation coefficients (Re & Im) for each frequency component
+        // Interpolate excitation coefficients (Re & Im) for each frequency component
         for i in 1:n_omega loop
           ExcCoeffRe[i] = Modelica.Math.Vectors.interpolate(w, F_excRe, omega[i])*rho*g;
           ExcCoeffIm[i] = Modelica.Math.Vectors.interpolate(w, F_excIm, omega[i])*rho*g;
         end for;
-// Calculate sea surface elevation (SSE) as the sum of all wave components
+        // Calculate sea surface elevation (SSE) as the sum of all wave components
         SSE = sum(zeta.*cos(omega*time - 2*pi*epsilon));
-// Calculate and apply ramping to the excitation force
+        // Calculate and apply ramping to the excitation force
         if time < Trmp then
-// Ramp up the excitation force during the initial phase
+          // Ramp up the excitation force during the initial phase
           wconn.F_exc = 0.5*(1 + cos(pi + (pi*time/Trmp)))*sum((ExcCoeffRe.*zeta.*cos(omega*time - 2*pi*epsilon)) - (ExcCoeffIm.*zeta.*sin(omega*time - 2*pi*epsilon)));
         else
-// Apply full excitation force after the ramping period
+          // Apply full excitation force after the ramping period
           wconn.F_exc = sum((ExcCoeffRe.*zeta.*cos(omega*time - 2*pi*epsilon)) - (ExcCoeffIm.*zeta.*sin(omega*time - 2*pi*epsilon)));
         end if;
-// Assign excitation force to output (vertical component only)
+        // Assign excitation force to output (vertical component only)
         F = {0, 0, wconn.F_exc};
         T = {0, 0, 0};
         annotation(
@@ -980,7 +1043,7 @@ package Hydrodynamic
               <li>Random seeds can be changed to generate different realizations of the same sea state</li>
             </ul>
           </html>"),
-          Icon(graphics = {Line(points = {{-80, 0}, {-60, 20}, {-40, -20}, {-20, 10}, {0, -10}, {20, 30}, {40, -30}, {60, 15}, {80, -15}}, color = {0, 0, 255}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-100, 50}, {100, -150}}, textString = "Bretschneider", fontName = "Arial")}, coordinateSystem(initialScale = 0.1)),
+          Icon(graphics = {Line(points = {{-80, 0}, {-60, 20}, {-40, -20}, {-20, 10}, {0, -10}, {20, 30}, {40, -30}, {60, 15}, {80, -15}}, color = {0, 0, 255}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-100, 50}, {100, -150}}, textString = " Bretschneider ", fontName = "Arial")}, coordinateSystem(initialScale = 0.1)),
           experiment(StartTime = 0, StopTime = 500, Tolerance = 1e-08, Interval = 0.05));
       end BretschneiderWave;
 
@@ -1036,22 +1099,22 @@ package Hydrodynamic
         Real ExcCoeffIm[n_omega] "Imaginary component of excitation coefficient for frequency components";
         Modelica.Units.SI.Length SSE "Sea surface elevation [m]";
       equation
-// Interpolate excitation coefficients (Re & Im) for each frequency component
+        // Interpolate excitation coefficients (Re & Im) for each frequency component
         for i in 1:n_omega loop
           ExcCoeffRe[i] = Modelica.Math.Vectors.interpolate(w, F_excRe, omega[i])*rho*g;
           ExcCoeffIm[i] = Modelica.Math.Vectors.interpolate(w, F_excIm, omega[i])*rho*g;
         end for;
-// Calculate sea surface elevation (SSE) as the sum of all wave components
+        // Calculate sea surface elevation (SSE) as the sum of all wave components
         SSE = sum(zeta.*cos(omega*time - 2*pi*epsilon));
-// Calculate and apply ramping to the excitation force
+        // Calculate and apply ramping to the excitation force
         if time < Trmp then
-// Ramp up the excitation force during the initial phase
+          // Ramp up the excitation force during the initial phase
           wconn.F_exc = 0.5*(1 + cos(pi + (pi*time/Trmp)))*sum((ExcCoeffRe.*zeta.*cos(omega*time - 2*pi*epsilon)) - (ExcCoeffIm.*zeta.*sin(omega*time - 2*pi*epsilon)));
         else
-// Apply full excitation force after the ramping period
+          // Apply full excitation force after the ramping period
           wconn.F_exc = sum((ExcCoeffRe.*zeta.*cos(omega*time - 2*pi*epsilon)) - (ExcCoeffIm.*zeta.*sin(omega*time - 2*pi*epsilon)));
         end if;
-// Assign excitation force to output (vertical component only)
+        // Assign excitation force to output (vertical component only)
         F = {0, 0, wconn.F_exc};
         T = {0, 0, 0};
         annotation(
@@ -1076,7 +1139,7 @@ package Hydrodynamic
               <li>JONSWAP spectrum is particularly suitable for modeling developing seas and storm conditions</li>
             </ul>
           </html>"),
-          Icon(graphics = {Line(points = {{-80, 0}, {-60, 20}, {-40, -20}, {-20, 10}, {0, -10}, {20, 30}, {40, -30}, {60, 15}, {80, -15}}, color = {0, 0, 255}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-100, 50}, {100, -150}}, textString = "JONSWAP", fontName = "Arial")}),
+          Icon(graphics = {Line(points = {{-80, 0}, {-60, 20}, {-40, -20}, {-20, 10}, {0, -10}, {20, 30}, {40, -30}, {60, 15}, {80, -15}}, color = {0, 0, 255}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-100, 50}, {100, -150}}, textString = " JONSWAP ", fontName = "Arial")}),
           experiment(StartTime = 0, StopTime = 500, Tolerance = 1e-08, Interval = 0.05));
       end JonswapWave;
 
@@ -1153,18 +1216,18 @@ package Hydrodynamic
       Real ExcCoeffIm "Imaginary component of excitation coefficient";
       Modelica.Units.SI.Length SSE "Sea surface elevation [m]";
     equation
-// Interpolate excitation coefficients (Re & Im) for the given wave frequency
+      // Interpolate excitation coefficients (Re & Im) for the given wave frequency
       ExcCoeffRe = Modelica.Math.Vectors.interpolate(w, F_excRe, omega);
       ExcCoeffIm = Modelica.Math.Vectors.interpolate(w, F_excIm, omega);
-// Define wave elevation profile (SSE)
+      // Define wave elevation profile (SSE)
       SSE = zeta*cos(omega*time);
-// Calculate and apply ramping to the excitation force
+      // Calculate and apply ramping to the excitation force
       if time < Trmp then
         wconn.F_exc = 0.5*(1 + cos(pi + (pi*time/Trmp)))*((ExcCoeffRe*zeta*cos(omega*time)) - (ExcCoeffIm*zeta*sin(omega*time)))*rho*g;
       else
         wconn.F_exc = ((ExcCoeffRe*zeta*cos(omega*time)) - (ExcCoeffIm*zeta*sin(omega*time)))*rho*g;
       end if;
-// Assign excitation force to output (vertical component only)
+      // Assign excitation force to output (vertical component only)
       F = {0, 0, wconn.F_exc};
       T = {0, 0, 0};
       annotation(
@@ -1179,7 +1242,7 @@ package Hydrodynamic
           </ul>
           <p>The model requires hydrodynamic coefficient data to be provided in a .mat file.</p>
         </html>"),
-        Icon(graphics = {Line(points = {{-90, 0}, {-60, 20}, {-30, -20}, {0, 20}, {30, -20}, {60, 20}, {90, 0}}, color = {0, 0, 200}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-100, 50}, {100, -150}}, textString = "Linear Wave 2", fontName = "Arial")}),
+        Icon(graphics = {Line(points = {{-90, 0}, {-60, 20}, {-30, -20}, {0, 20}, {30, -20}, {60, 20}, {90, 0}}, color = {0, 0, 200}, thickness = 2, smooth = Smooth.Bezier), Text(extent = {{-100, 50}, {100, -150}}, textString = " Linear Wave 2 ", fontName = "Arial")}),
         experiment(StartTime = 0, StopTime = 500, Tolerance = 1e-08, Interval = 0.05));
     end waveParameters;
     annotation(
@@ -1422,6 +1485,9 @@ package Hydrodynamic
     parameter Real F_excRe[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.FexcRe", 1, wSize)) "Real part of excitation force coefficients";
     parameter Real F_excIm[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.FexcIm", 1, wSize)) "Imaginary part of excitation force coefficients";
     parameter Real w[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.w", 1, wSize)) "Angular frequency vector [rad/s]";
+    parameter Real Adep[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.added_mass", wSize, 1)) "Frequency dependent added mass";
+    parameter Real Rdamp[:] = vector(Modelica.Utilities.Streams.readRealMatrix(fileName, "hydroCoeff.radiation_damping", wSize, 1)) "Radiation damping";
+    
   equation
 
   annotation(
@@ -1462,13 +1528,11 @@ package Hydrodynamic
   package Internal
     /* Internal library of core functions and connectors for ocean engineering applications
                            This package contains essential components for wave modeling and structure interactions */
-
     package Functions
       /* Package defining explicit library functions for wave calculations and random number generation
                                        This package contains a collection of functions essential for ocean engineering simulations,
                                        including wave number calculations, random number generation, and various wave spectrum generators. */
       extends Modelica.Icons.Package;
-
       function waveNumber "Function to iteratively compute the wave number from frequency components"
         /* Uses the dispersion relationship for water waves to calculate wave numbers
                                                    This function implements an iterative method to solve the implicit dispersion equation */
@@ -1752,7 +1816,7 @@ package Hydrodynamic
       Hydrodynamic.Structures.RigidBody Body3(fileName = filePath) "Rigid body for Bretschneider wave interaction";
       Hydrodynamic.Structures.RigidBody Body4(fileName = filePath) "Rigid body for JONSWAP wave interaction";
     equation
-// Connect wave models to corresponding rigid bodies
+      // Connect wave models to corresponding rigid bodies
       connect(Reg1.wconn.F_exc, Body1.wconn.F_exc) "Connection for regular wave excitation";
       connect(Irr1.wconn.F_exc, Body2.wconn.F_exc) "Connection for Pierson-Moskowitz wave excitation";
       connect(Irr2.wconn.F_exc, Body3.wconn.F_exc) "Connection for Bretschneider wave excitation";
@@ -2049,11 +2113,11 @@ package Hydrodynamic
       Real F[6] "Hydrostatic force/torque vector";
       Real u_theta[6] "Combined linear and angular displacements";
     equation
-// Combine u and theta into a 6x1 matrix
+      // Combine u and theta into a 6x1 matrix
       u_theta[1:3] = u;
       u_theta[4:6] = theta;
       F = -G*u_theta;
-// Use the switch to conditionally output the force
+      // Use the switch to conditionally output the force
       if enableHydrostaticForce then
         y = F[1:3];
         y1 = F[4:6];
@@ -2089,16 +2153,16 @@ package Hydrodynamic
       HydrodynamicBlock6D hydrodynamicBlock6D(rho = rho, A = A, Cdx = Cdx, Cdy = Cdy, Cdz = Cdz, Crx = Crx, Cry = Cry, Crz = Crz, enableDragForce = enableDragForce) "Calculation of hydrodynamic forces and moments" annotation(
         Placement(transformation(origin = {24, 34}, extent = {{-10, -10}, {10, 10}})));
     equation
-// Connect input frame to body
+      // Connect input frame to body
       connect(frame_a, bodyShape.frame_a) annotation(
         Line(points = {{-102, 0}, {-60, 0}}));
-// Connect body to fixed translation
+      // Connect body to fixed translation
       connect(bodyShape.frame_b, fixedTranslation.frame_a) annotation(
         Line(points = {{-40, 0}, {-30, 0}}, color = {95, 95, 95}));
-// Connect fixed translation to output frame
+      // Connect fixed translation to output frame
       connect(fixedTranslation.frame_b, frame_b) annotation(
         Line(points = {{-10, 0}, {102, 0}}, color = {95, 95, 95}));
-// Connect hydrodynamic block to body
+      // Connect hydrodynamic block to body
       connect(hydrodynamicBlock6D.frame_a, fixedTranslation.frame_b) annotation(
         Line(points = {{14, 34}, {-10, 34}, {-10, 0}}, color = {95, 95, 95}));
       connect(hydrodynamicBlock6D.frame_b, fixedTranslation.frame_b) annotation(
@@ -2137,7 +2201,7 @@ package Hydrodynamic
       // Excitation force data input
       CombiTimeTable excitationData(tableOnFile = true, fileName = "C:/Users/Duke/SysModel2024/DragSystem/ExcF9.csv", tableName = "excitation", columns = {2}, extrapolation = Modelica.Blocks.Types.Extrapolation.HoldLastPoint) "Time series data for vertical excitation force";
     equation
-// Apply excitation force only in the vertical direction (third element)
+      // Apply excitation force only in the vertical direction (third element)
       y = {0, 0, excitationData.y[1]};
       annotation(
         Documentation(info = "<html>
